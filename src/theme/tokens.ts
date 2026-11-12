@@ -1,22 +1,28 @@
 /**
  * Upshot's design tokens. The app is dark only (decision 3 in ROADMAP.md).
  *
- * The palette is inspired by the warm-on-dark feel of modern Australian banking apps, but the
- * colours are Upshot's own: a near-black base, warm off-white text and a coral accent.
+ * Upshot sits on deep navy rather than black, with warm off-white text and a coral accent.
+ * Screens follow one layout: a dark header area, then a slightly lighter **sheet** with rounded
+ * top corners that holds full-width lists split by section bands.
  */
 
 export const colors = {
-  /** App background. */
-  base: '#0E0E12',
-  /** Cards and grouped lists. */
-  surface: '#17171D',
-  /** Raised elements on a card: pressed rows, chips, segmented controls. */
-  raised: '#22222A',
-  border: '#2C2C36',
+  /** App background and the header area of each screen. */
+  base: '#1F1E2B',
+  /** The sheet that rises over the header and holds lists. */
+  sheet: '#282736',
+  /** Section bands across the sheet, like "Savers" or "About". */
+  band: '#23222F',
+  /** Cards that sit on the sheet or header. */
+  surface: '#302F40',
+  /** Pressed rows, chips and other raised states. */
+  raised: '#38374A',
+  /** Hairline separators and outlines. */
+  border: '#3B3A4E',
 
-  text: '#F6F3EE',
-  textMuted: '#A19FAA',
-  textFaint: '#6E6C77',
+  text: '#F4F2F7',
+  textMuted: '#A9A6B8',
+  textFaint: '#7A778C',
 
   accent: '#FF8A5B',
   accentStrong: '#FF6F3C',
@@ -50,25 +56,30 @@ export const spacing = {
   xxxl: 48,
 } as const;
 
+/** Corners are kept tight. Only the sheet and pills are properly round. */
 export const radii = {
-  sm: 8,
-  md: 14,
-  lg: 20,
+  sm: 4,
+  md: 6,
+  lg: 10,
+  sheet: 18,
   pill: 999,
 } as const;
 
+/** A compact scale: regular-weight body text, with weight kept for numbers and headings. */
 export const type = {
-  /** Screen titles. */
-  title: { fontSize: 32, fontWeight: '700', letterSpacing: -0.6 },
-  heading: { fontSize: 20, fontWeight: '700', letterSpacing: -0.3 },
-  body: { fontSize: 16, fontWeight: '500' },
-  bodyStrong: { fontSize: 16, fontWeight: '600' },
-  caption: { fontSize: 13, fontWeight: '500' },
-  /** Small capitals above sections. */
-  label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' },
+  /** Tabs in the top navigation. */
+  nav: { fontSize: 17, fontWeight: '500', letterSpacing: -0.2 },
+  /** A name under an avatar, or a page's main heading. */
+  title: { fontSize: 22, fontWeight: '600', letterSpacing: -0.3 },
+  heading: { fontSize: 16, fontWeight: '600', letterSpacing: -0.1 },
+  body: { fontSize: 15, fontWeight: '400' },
+  bodyStrong: { fontSize: 15, fontWeight: '600' },
+  caption: { fontSize: 12.5, fontWeight: '400' },
+  /** Small capitals on section bands. */
+  label: { fontSize: 11.5, fontWeight: '600', letterSpacing: 1.4, textTransform: 'uppercase' },
   /** The dollars part of large money displays; cents use `moneyCents`. */
-  moneyLarge: { fontSize: 44, fontWeight: '700', letterSpacing: -1.2 },
-  moneyCents: { fontSize: 22, fontWeight: '700' },
+  moneyLarge: { fontSize: 38, fontWeight: '700', letterSpacing: -1 },
+  moneyCents: { fontSize: 18, fontWeight: '700' },
 } as const;
 
 export const motion = {
