@@ -7,6 +7,7 @@ import {
   useDerivedValue,
   useReducedMotion,
   useSharedValue,
+  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -19,7 +20,7 @@ import { formatMoney, formatMoneyRounded } from '@/lib/money';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
 import { buildLineChart, nearestIndex } from './geometry';
-import { DotGrid, ParticleField } from './ParticleField';
+import { DotGrid, TouchParticleField } from './ParticleField';
 import { DEFAULT_BAND, particlesUnderLine } from './particles';
 
 interface BalanceChartProps {
@@ -72,6 +73,10 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
 
   const cursor = useSharedValue(-1);
   const cursorOpacity = useSharedValue(0);
+  // The finger, for pushing particles out of its way.
+  const touchX = useSharedValue(-1000);
+  const touchY = useSharedValue(-1000);
+  const touchStrength = useSharedValue(0);
   const { xs } = geometry;
   const cursorX = useDerivedValue(() => xs[cursor.value] ?? 0);
   const lineStart = useDerivedValue(() => vec(cursorX.value, TOP / 2));
@@ -95,11 +100,16 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
       const index = nearestIndex(xs, event.x);
       cursor.value = index;
       cursorOpacity.value = withTiming(1, { duration: motion.fast });
+      touchX.value = event.x;
+      touchY.value = event.y;
+      touchStrength.value = reduceMotion ? 0 : withSpring(1, { damping: 16, stiffness: 220 });
       scheduleOnRN(onIndexChange, index);
       scheduleOnRN(onScrubbing, true);
     },
     onUpdate: (event) => {
       'worklet';
+      touchX.value = event.x;
+      touchY.value = event.y;
       const index = nearestIndex(xs, event.x);
       if (index !== cursor.value) {
         cursor.value = index;
@@ -108,6 +118,8 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
     },
     onFinalize: () => {
       'worklet';
+      // Let go: particles spring back into place, overshooting a touch like liquid settling.
+      touchStrength.value = withSpring(0, { damping: 8, stiffness: 120 });
       cursorOpacity.value = withTiming(0, { duration: motion.fast }, (finished) => {
         if (finished) cursor.value = -1;
       });
@@ -158,7 +170,13 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
                 color={colors.border}
               />
               <Group clip={clip} transform={rise}>
-                <ParticleField particles={particles} color={colors.accent} />
+                <TouchParticleField
+                  particles={particles}
+                  color={colors.accent}
+                  touchX={touchX}
+                  touchY={touchY}
+                  strength={touchStrength}
+                />
               </Group>
               <Group opacity={cursorOpacity}>
                 <Line

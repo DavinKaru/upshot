@@ -4,6 +4,9 @@ import {
   DEFAULT_BAND,
   particlesInRing,
   particlesUnderLine,
+  pushFromTouch,
+  TOUCH_PUSH,
+  TOUCH_RADIUS,
 } from '../particles';
 
 const xs = [0, 100, 200, 300];
@@ -82,5 +85,35 @@ describe('bucketByAlpha', () => {
     ]);
     expect(buckets).toHaveLength(ALPHA_LEVELS.length);
     expect(buckets.map((b) => b.length)).toEqual([1, 1, 0, 1]);
+  });
+});
+
+describe('pushFromTouch', () => {
+  it('pushes particles directly away from the finger', () => {
+    const right = pushFromTouch(110, 100, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH);
+    expect(right.dx).toBeGreaterThan(0);
+    expect(right.dy).toBeCloseTo(0);
+    const above = pushFromTouch(100, 90, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH);
+    expect(above.dy).toBeLessThan(0);
+  });
+
+  it('pushes closer particles further, and leaves distant ones alone', () => {
+    const near = pushFromTouch(105, 100, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH).dx;
+    const far = pushFromTouch(150, 100, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH).dx;
+    expect(near).toBeGreaterThan(far);
+    expect(
+      pushFromTouch(100 + TOUCH_RADIUS + 1, 100, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH),
+    ).toEqual({ dx: 0, dy: 0 });
+  });
+
+  it('scales with strength and does nothing without a touch', () => {
+    const full = pushFromTouch(110, 100, 100, 100, 1, TOUCH_RADIUS, TOUCH_PUSH).dx;
+    expect(pushFromTouch(110, 100, 100, 100, 0.5, TOUCH_RADIUS, TOUCH_PUSH).dx).toBeCloseTo(
+      full / 2,
+    );
+    expect(pushFromTouch(110, 100, 100, 100, 0, TOUCH_RADIUS, TOUCH_PUSH)).toEqual({
+      dx: 0,
+      dy: 0,
+    });
   });
 });

@@ -48,6 +48,7 @@ jest.mock('@shopify/react-native-skia', () => {
   };
   return {
     Canvas: Nothing,
+    usePathValue: () => ({ value: path }),
     Path: Nothing,
     Group: Nothing,
     Line: Nothing,

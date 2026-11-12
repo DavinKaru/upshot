@@ -177,3 +177,35 @@ export function bucketByAlpha(particles: readonly Particle[]): Particle[][] {
   }
   return buckets;
 }
+
+/** How far from the finger particles react, and how far the closest ones are pushed, in points. */
+export const TOUCH_RADIUS = 72;
+export const TOUCH_PUSH = 30;
+
+/**
+ * How far a particle at (`px`, `py`) is pushed away from a finger at (`tx`, `ty`). The push is
+ * strongest right under the finger and eases to nothing at `radius`. `strength` (0–1) fades the
+ * whole effect in and out, and springs past 0 briefly as particles settle back.
+ */
+export function pushFromTouch(
+  px: number,
+  py: number,
+  tx: number,
+  ty: number,
+  strength: number,
+  // No defaults here: worklets don't capture module constants used only in default values.
+  radius: number,
+  push: number,
+): { dx: number; dy: number } {
+  'worklet';
+  const ox = px - tx;
+  const oy = py - ty;
+  if (strength === 0 || Math.abs(ox) > radius || Math.abs(oy) > radius) return { dx: 0, dy: 0 };
+  const distance = Math.sqrt(ox * ox + oy * oy);
+  if (distance >= radius) return { dx: 0, dy: 0 };
+  const falloff = 1 - distance / radius;
+  const amount = falloff * falloff * push * strength;
+  // Particles right under the finger have no direction; nudge them upwards.
+  if (distance < 0.001) return { dx: 0, dy: -amount };
+  return { dx: (ox / distance) * amount, dy: (oy / distance) * amount };
+}

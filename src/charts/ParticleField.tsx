@@ -1,7 +1,15 @@
-import { Path, Skia } from '@shopify/react-native-skia';
+import { Path, Skia, usePathValue } from '@shopify/react-native-skia';
 import { useMemo } from 'react';
+import type { SharedValue } from 'react-native-reanimated';
 
-import { ALPHA_LEVELS, bucketByAlpha, type Particle } from './particles';
+import {
+  ALPHA_LEVELS,
+  bucketByAlpha,
+  pushFromTouch,
+  TOUCH_PUSH,
+  TOUCH_RADIUS,
+  type Particle,
+} from './particles';
 
 interface ParticleFieldProps {
   particles: readonly Particle[];
@@ -30,6 +38,76 @@ export function ParticleField({ particles, color }: ParticleFieldProps) {
       ))}
     </>
   );
+}
+
+interface TouchParticleFieldProps {
+  particles: readonly Particle[];
+  color: string;
+  /** Where the finger is, in the canvas's coordinates. */
+  touchX: SharedValue<number>;
+  touchY: SharedValue<number>;
+  /** 0 when nothing touches the chart, 1 while a finger is down. Spring it for a liquid feel. */
+  strength: SharedValue<number>;
+}
+
+/**
+ * Particles that move out of the way of a finger, like the liquid in Up's Saver Insights. The
+ * particle paths are rebuilt on the UI thread whenever the finger moves, so it never waits on
+ * JavaScript. Each opacity level is still a single path, so it's a handful of draw calls.
+ */
+export function TouchParticleField({
+  particles,
+  color,
+  touchX,
+  touchY,
+  strength,
+}: TouchParticleFieldProps) {
+  const buckets = useMemo(() => bucketByAlpha(particles), [particles]);
+  return (
+    <>
+      {buckets.map((bucket, i) =>
+        bucket.length > 0 ? (
+          <TouchLayer
+            key={i}
+            particles={bucket}
+            color={color}
+            opacity={ALPHA_LEVELS[i] ?? 1}
+            touchX={touchX}
+            touchY={touchY}
+            strength={strength}
+          />
+        ) : null,
+      )}
+    </>
+  );
+}
+
+interface TouchLayerProps extends TouchParticleFieldProps {
+  opacity: number;
+}
+
+function TouchLayer({ particles, color, opacity, touchX, touchY, strength }: TouchLayerProps) {
+  // Plain number arrays copy to the UI thread cheaply.
+  const xs = useMemo(() => particles.map((p) => p.x), [particles]);
+  const ys = useMemo(() => particles.map((p) => p.y), [particles]);
+  const rs = useMemo(() => particles.map((p) => p.r), [particles]);
+  const radius = TOUCH_RADIUS;
+  const push = TOUCH_PUSH;
+
+  const path = usePathValue((builder) => {
+    'worklet';
+    const tx = touchX.value;
+    const ty = touchY.value;
+    const s = strength.value;
+    for (let i = 0; i < xs.length; i++) {
+      const x = xs[i] ?? 0;
+      const y = ys[i] ?? 0;
+      const { dx, dy } = pushFromTouch(x, y, tx, ty, s, radius, push);
+      builder.addCircle(x + dx, y + dy, rs[i] ?? 1);
+    }
+  });
+
+  return <Path path={path} color={color} opacity={opacity} />;
 }
 
 interface DotGridProps {
