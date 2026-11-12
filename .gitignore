@@ -1,0 +1,6 @@
+# Up's API reference, kept locally for context. It's Up's content, so it isn't published here.
+llms.txt
+
+.DS_Store
+.claude/settings.local.json
+.claude/.cc-writes/
