@@ -1,18 +1,19 @@
-import Feather from '@expo/vector-icons/Feather';
 import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { tick } from '@/lib/haptics';
 import { colors, spacing } from '@/theme/tokens';
 
-/** Routes shown as an icon at the right of the bar rather than as a text tab. */
-const ICON_ROUTES: Record<string, React.ComponentProps<typeof Feather>['name']> = {
-  settings: 'settings',
-};
+interface LabelLayout {
+  x: number;
+  width: number;
+}
 
 /**
- * The app's navigation: plain text tabs along the top. Pages also swipe left and right from
- * anywhere, and the labels brighten and dim with the swipe.
+ * The app's navigation: plain text tabs along the top, with the current tab always centred on
+ * screen, even the first and last. Pages swipe left and right from anywhere, and the row of
+ * labels slides with the swipe so the next tab glides into the centre.
  */
 export function TopNav({
   state,
@@ -21,6 +22,11 @@ export function TopNav({
   position,
   insets,
 }: MaterialTopTabBarProps) {
+  const { width: screenWidth } = useWindowDimensions();
+  const [layouts, setLayouts] = useState<(LabelLayout | undefined)[]>([]);
+  const routes = state.routes;
+  const measured = routes.length > 0 && routes.every((_, i) => layouts[i] !== undefined);
+
   const go = (key: string, index: number) => {
     if (index !== state.index) {
       tick();
@@ -28,8 +34,20 @@ export function TopNav({
     }
   };
 
-  const textRoutes = state.routes.filter((route) => !(route.name in ICON_ROUTES));
-  const iconRoutes = state.routes.filter((route) => route.name in ICON_ROUTES);
+  // How far to shift the row so tab `i` sits in the middle of the screen.
+  const offsetFor = (i: number) => {
+    const layout = layouts[i];
+    return layout ? screenWidth / 2 - (layout.x + layout.width / 2) : 0;
+  };
+
+  const translateX =
+    measured && routes.length > 1
+      ? position.interpolate({
+          inputRange: routes.map((_, i) => i),
+          outputRange: routes.map((_, i) => offsetFor(i)),
+          extrapolate: 'clamp',
+        })
+      : offsetFor(state.index);
 
   // Fade each label in as its page comes into view.
   const opacityFor = (index: number) =>
@@ -41,15 +59,24 @@ export function TopNav({
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + spacing.sm }]} accessibilityRole="tablist">
-      <View style={styles.tabs}>
-        {textRoutes.map((route) => {
-          const index = state.routes.indexOf(route);
+      <Animated.View
+        style={[styles.row, { opacity: measured ? 1 : 0, transform: [{ translateX }] }]}
+      >
+        {routes.map((route, index) => {
           const focused = index === state.index;
           const title = descriptors[route.key]?.options.title ?? route.name;
           return (
             <Pressable
               key={route.key}
               onPress={() => go(route.key, index)}
+              onLayout={(event) => {
+                const { x, width } = event.nativeEvent.layout;
+                setLayouts((current) => {
+                  const next = [...current];
+                  next[index] = { x, width };
+                  return next;
+                });
+              }}
               hitSlop={8}
               accessibilityRole="tab"
               accessibilityState={{ selected: focused }}
@@ -60,42 +87,21 @@ export function TopNav({
             </Pressable>
           );
         })}
-      </View>
-      {iconRoutes.map((route) => {
-        const index = state.routes.indexOf(route);
-        const focused = index === state.index;
-        const name = ICON_ROUTES[route.name] ?? 'circle';
-        return (
-          <Pressable
-            key={route.key}
-            onPress={() => go(route.key, index)}
-            hitSlop={12}
-            accessibilityRole="tab"
-            accessibilityLabel={descriptors[route.key]?.options.title ?? route.name}
-            accessibilityState={{ selected: focused }}
-          >
-            <Animated.View style={{ opacity: opacityFor(index) }}>
-              <Feather name={name} size={22} color={colors.text} />
-            </Animated.View>
-          </Pressable>
-        );
-      })}
+      </Animated.View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg + spacing.xs,
     paddingBottom: spacing.md,
     backgroundColor: colors.base,
+    overflow: 'hidden',
   },
-  tabs: {
+  row: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    alignSelf: 'flex-start',
     gap: spacing.xl,
   },
   label: {
