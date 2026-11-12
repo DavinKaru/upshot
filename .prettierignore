@@ -1,0 +1,9 @@
+# Generated or vendored
+package-lock.json
+dist/
+.expo/
+ios/
+android/
+
+# Prose is wrapped by hand
+*.md
