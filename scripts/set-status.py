@@ -2,7 +2,7 @@
 """Set the Status of Upshot project items, matched by exact title.
 
     scripts/set-status.py Done "Confirm the stack" "Repo docs"
-    scripts/set-status.py "In progress" "CI pipeline"
+    scripts/set-status.py "In progress" "CI pipeline"   # status is matched ignoring case
 
 Every title is checked before anything changes, so a typo changes nothing.
 Needs `gh` logged in as DavinKaru with the `project` scope.
@@ -40,9 +40,12 @@ def main():
 
     fields = gh_json("project", "field-list", number, "--owner", OWNER)["fields"]
     field = next(f for f in fields if f["name"] == "Status")
-    options = {o["name"]: o["id"] for o in field["options"]}
-    if status not in options:
-        sys.exit(f"Unknown status {status!r}. Choose one of: {', '.join(options)}")
+    options = {o["name"].casefold(): o for o in field["options"]}
+    option = options.get(status.casefold())
+    if option is None:
+        names = ", ".join(o["name"] for o in field["options"])
+        sys.exit(f"Unknown status {status!r}. Choose one of: {names}")
+    status = option["name"]
 
     items = gh_json("project", "item-list", number, "--owner", OWNER, "--limit", "1000")["items"]
     by_title = {}
@@ -60,7 +63,7 @@ def main():
 
     for t in titles:
         gh("project", "item-edit", "--id", by_title[t][0]["id"], "--project-id", project["id"],
-           "--field-id", field["id"], "--single-select-option-id", options[status])
+           "--field-id", field["id"], "--single-select-option-id", option["id"])
         print(f"{status:<12} {t}")
 
 
