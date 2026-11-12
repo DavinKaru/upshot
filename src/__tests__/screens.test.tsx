@@ -6,7 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import HomeScreen from '@/app/(tabs)/index';
 import InsightsScreen from '@/app/(tabs)/insights';
 import SaversScreen from '@/app/(tabs)/savers';
-import SettingsScreen from '@/app/(tabs)/settings';
+import UpshotScreen from '@/app/(tabs)/upshot';
 import { DemoDataProvider } from '@/data/DemoDataProvider';
 
 jest.mock('expo-router', () => ({
@@ -61,8 +61,9 @@ describe('screens render with demo data', () => {
     expect(screen.getByLabelText(/^Balance chart\./)).toBeTruthy();
   });
 
-  it('Settings explains demo mode and the disclaimer', async () => {
-    await renderScreen(<SettingsScreen />);
+  it('Upshot shows the app, the Up connection and the disclaimer', async () => {
+    await renderScreen(<UpshotScreen />);
+    expect(screen.getByText('Insights for your Up account')).toBeTruthy();
     expect(screen.getByText('Connect your Up account')).toBeTruthy();
     expect(screen.getByText(/isn't affiliated with/)).toBeTruthy();
   });

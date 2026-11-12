@@ -3,12 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, radii, spacing, type } from '@/theme/tokens';
 
-/** Tells people the numbers on screen are made up. Shown until a real Up account is connected. */
+/** A small marker that the numbers on screen are made up. Shown until Up is connected. */
 export function DemoBanner() {
   return (
     <View style={styles.banner} accessibilityRole="text">
-      <Feather name="eye" size={16} color={colors.amber} />
-      <Text style={styles.text}>Demo mode. Everything here is made up, so explore freely.</Text>
+      <Feather name="eye" size={13} color={colors.amber} />
+      <Text style={styles.text}>Demo mode · made-up data</Text>
     </View>
   );
 }
@@ -17,16 +17,16 @@ const styles = StyleSheet.create({
   banner: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: 'rgba(255, 193, 94, 0.1)',
-    borderRadius: radii.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.lg,
+    alignSelf: 'center',
+    gap: spacing.xs + 2,
+    backgroundColor: 'rgba(255, 193, 94, 0.12)',
+    borderRadius: radii.sm,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs,
   },
   text: {
     ...type.caption,
     color: colors.amber,
-    flex: 1,
+    fontWeight: '500',
   },
 });

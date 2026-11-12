@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   },
   symbol: {
     ...type.moneyCents,
-    marginTop: 6,
+    marginTop: 5,
     marginRight: 2,
   },
   dollars: {
@@ -76,19 +76,19 @@ const styles = StyleSheet.create({
   },
   cents: {
     ...type.moneyCents,
-    marginTop: 6,
+    marginTop: 5,
     fontVariant: ['tabular-nums'],
   },
   symbolMedium: {
-    fontSize: 16,
-    marginTop: 4,
+    fontSize: 14,
+    marginTop: 3,
   },
   dollarsMedium: {
-    fontSize: 32,
-    letterSpacing: -0.8,
+    fontSize: 28,
+    letterSpacing: -0.6,
   },
   centsMedium: {
-    fontSize: 16,
-    marginTop: 4,
+    fontSize: 14,
+    marginTop: 3,
   },
 });

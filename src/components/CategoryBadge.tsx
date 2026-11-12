@@ -27,7 +27,7 @@ interface CategoryBadgeProps {
 }
 
 /** A round, tinted icon that marks a transaction's parent category. */
-export function CategoryBadge({ parentId, size = 40, icon }: CategoryBadgeProps) {
+export function CategoryBadge({ parentId, size = 36, icon }: CategoryBadgeProps) {
   const key = categoryColorKey(parentId);
   const tint = colors.category[key];
   return (

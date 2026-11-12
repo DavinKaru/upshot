@@ -1,16 +1,17 @@
+import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { TransactionResource } from '@/api/up/types';
-import { Card } from '@/components/Card';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { DemoBanner } from '@/components/DemoBanner';
 import { EmojiBadge } from '@/components/EmojiBadge';
 import { ListRow } from '@/components/ListRow';
+import { ListSection } from '@/components/ListSection';
 import { Money } from '@/components/Money';
 import { Screen } from '@/components/Screen';
-import { SectionHeader } from '@/components/SectionHeader';
+import { Sheet } from '@/components/Sheet';
 import { useAccounts, useBankData } from '@/data/DemoDataProvider';
 import { formatMonth, formatShortDate, previousMonth } from '@/insights/dates';
 import { spendingByCategory } from '@/insights/spendingByCategory';
@@ -46,64 +47,75 @@ export default function HomeScreen() {
 
   return (
     <Screen>
-      <Text style={styles.greeting}>{greeting(generatedAt)}</Text>
-      <DemoBanner />
-
-      <Card style={styles.balanceCard}>
-        <Text style={styles.cardLabel}>{spending?.attributes.displayName ?? 'Spending'}</Text>
+      <View style={styles.hero}>
+        <Text style={styles.greeting}>{greeting(generatedAt)}</Text>
         <Money cents={spending?.attributes.balance.valueInBaseUnits ?? 0} size="large" />
-        <Text style={styles.caption}>Available to spend</Text>
-      </Card>
-
-      <SectionHeader
-        title={`Spent in ${formatMonth(generatedAt)}`}
-        actionLabel="Insights"
-        onAction={() => router.navigate('/insights')}
-      />
-      <Card>
-        <Money cents={month.total} size="large" />
         <Text style={styles.caption}>
-          So far this month. By this time in {formatMonth(previousMonth(generatedAt))} you&apos;d
-          spent {formatMoney(month.lastMonth)}.
+          Available in {spending?.attributes.displayName ?? 'Spending'}
         </Text>
-      </Card>
-
-      <SectionHeader
-        title="Savers"
-        actionLabel="See all"
-        onAction={() => router.navigate('/savers')}
-      />
-      <Card style={styles.listCard}>
-        {savers.map((saver) => {
-          const { emoji, label } = splitLeadingEmoji(saver.attributes.displayName);
-          return (
-            <ListRow
-              key={saver.id}
-              title={label}
-              leading={
-                emoji ? (
-                  <EmojiBadge emoji={emoji} />
-                ) : (
-                  <CategoryBadge parentId={null} icon="target" />
-                )
-              }
-              trailing={<Money cents={saver.attributes.balance.valueInBaseUnits} />}
-              onPress={() => router.navigate('/savers')}
-            />
-          );
-        })}
-        <View style={styles.totalRow}>
-          <Text style={styles.caption}>Total saved</Text>
-          <Money cents={totalSaved} />
+        <View style={styles.banner}>
+          <DemoBanner />
         </View>
-      </Card>
+      </View>
 
-      <SectionHeader title="Recent activity" />
-      <Card style={styles.listCard}>
-        {recent.map((tx) => (
-          <TransactionRow key={tx.id} tx={tx} categoryNames={categoryNames} />
-        ))}
-      </Card>
+      <Sheet>
+        <ListSection
+          title={`Spent in ${formatMonth(generatedAt)}`}
+          actionLabel="Insights"
+          onAction={() => router.navigate('/insights')}
+        >
+          <ListRow
+            title="So far this month"
+            subtitle={`By this time in ${formatMonth(previousMonth(generatedAt))} you'd spent ${formatMoney(month.lastMonth)}`}
+            leading={<Feather name="pie-chart" size={22} color={colors.text} />}
+            trailing={<Money cents={month.total} />}
+            separator={false}
+            onPress={() => router.navigate('/insights')}
+          />
+        </ListSection>
+
+        <ListSection
+          title="Savers"
+          actionLabel="See all"
+          onAction={() => router.navigate('/savers')}
+        >
+          {savers.map((saver) => {
+            const { emoji, label } = splitLeadingEmoji(saver.attributes.displayName);
+            return (
+              <ListRow
+                key={saver.id}
+                title={label}
+                leading={
+                  emoji ? (
+                    <EmojiBadge emoji={emoji} />
+                  ) : (
+                    <CategoryBadge parentId={null} icon="target" />
+                  )
+                }
+                trailing={<Money cents={saver.attributes.balance.valueInBaseUnits} />}
+                onPress={() => router.navigate('/savers')}
+              />
+            );
+          })}
+          <ListRow
+            title="Total saved"
+            leading={<Feather name="layers" size={22} color={colors.textMuted} />}
+            trailing={<Money cents={totalSaved} />}
+            separator={false}
+          />
+        </ListSection>
+
+        <ListSection title="Recent activity">
+          {recent.map((tx, i) => (
+            <TransactionRow
+              key={tx.id}
+              tx={tx}
+              categoryNames={categoryNames}
+              last={i === recent.length - 1}
+            />
+          ))}
+        </ListSection>
+      </Sheet>
     </Screen>
   );
 }
@@ -111,9 +123,11 @@ export default function HomeScreen() {
 function TransactionRow({
   tx,
   categoryNames,
+  last,
 }: {
   tx: TransactionResource;
   categoryNames: Map<string, string>;
+  last: boolean;
 }) {
   const amount = tx.attributes.amount.valueInBaseUnits;
   const isTransfer = tx.relationships.transferAccount.data !== null;
@@ -141,43 +155,27 @@ function TransactionRow({
         />
       }
       trailing={<Money cents={amount} tintPositive showPlus />}
+      separator={!last}
     />
   );
 }
 
 const styles = StyleSheet.create({
+  hero: {
+    alignItems: 'center',
+    paddingTop: spacing.lg,
+  },
   greeting: {
-    ...type.caption,
+    ...type.body,
     color: colors.textMuted,
-    marginBottom: spacing.md,
-    paddingHorizontal: spacing.xs,
-  },
-  balanceCard: {
-    paddingVertical: spacing.xl,
-  },
-  cardLabel: {
-    ...type.bodyStrong,
-    color: colors.textMuted,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.sm,
   },
   caption: {
-    ...type.caption,
+    ...type.body,
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
-  listCard: {
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  totalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.xs,
-    marginTop: spacing.xs,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+  banner: {
+    marginTop: spacing.md,
   },
 });

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
 import { tick } from '@/lib/haptics';
-import { colors, spacing } from '@/theme/tokens';
+import { colors, spacing, type } from '@/theme/tokens';
 
 interface LabelLayout {
   x: number;
@@ -53,7 +53,7 @@ export function TopNav({
   const opacityFor = (index: number) =>
     position.interpolate({
       inputRange: [index - 1, index, index + 1],
-      outputRange: [0.38, 1, 0.38],
+      outputRange: [0.45, 1, 0.45],
       extrapolate: 'clamp',
     });
 
@@ -102,12 +102,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'baseline',
     alignSelf: 'flex-start',
-    gap: spacing.xl,
+    gap: spacing.xl + spacing.xs,
   },
   label: {
+    ...type.nav,
     color: colors.text,
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.4,
   },
 });

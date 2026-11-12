@@ -1,7 +1,6 @@
 import { useMemo } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
-import { Card } from '@/components/Card';
 import { CategoryBreakdown } from '@/charts/CategoryBreakdown';
 import { Screen } from '@/components/Screen';
 import { useBankData } from '@/data/DemoDataProvider';
@@ -17,12 +16,15 @@ export default function InsightsScreen() {
 
   return (
     <Screen>
-      <Card>
-        <CategoryBreakdown spending={spending} month={generatedAt} />
-      </Card>
-      <Text style={styles.footnote}>
-        Transfers between your accounts and money coming in aren&apos;t counted as spending.
-      </Text>
+      <CategoryBreakdown
+        spending={spending}
+        month={generatedAt}
+        footer={
+          <Text style={styles.footnote}>
+            Transfers between your accounts and money coming in aren&apos;t counted as spending.
+          </Text>
+        }
+      />
     </Screen>
   );
 }
@@ -31,7 +33,8 @@ const styles = StyleSheet.create({
   footnote: {
     ...type.caption,
     color: colors.textFaint,
-    marginTop: spacing.md,
-    paddingHorizontal: spacing.xs,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+    paddingHorizontal: spacing.xl,
   },
 });

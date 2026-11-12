@@ -1,11 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
 import { categoryColorKey } from '@/components/CategoryBadge';
 import { ListRow } from '@/components/ListRow';
+import { ListSection } from '@/components/ListSection';
 import { Money } from '@/components/Money';
+import { Sheet } from '@/components/Sheet';
 import { formatMonth, previousMonth } from '@/insights/dates';
 import type { CategorySpend, MonthlySpending } from '@/insights/spendingByCategory';
 import { tap } from '@/lib/haptics';
@@ -19,13 +21,15 @@ interface CategoryBreakdownProps {
   spending: MonthlySpending;
   /** Any date in the month being shown, used for labels. */
   month: Date;
+  /** Shown at the bottom of the sheet, under the list. */
+  footer?: ReactNode;
 }
 
 /**
  * This month's spending by category. Tap a category, on the ring or in the list, to see its
  * sub-categories; each row compares with last month.
  */
-export function CategoryBreakdown({ spending, month }: CategoryBreakdownProps) {
+export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdownProps) {
   const [parentId, setParentId] = useState<string | null>(null);
   const parent = spending.parents.find((p) => p.id === parentId) ?? null;
   const lastMonthName = formatMonth(previousMonth(month)).slice(0, 3);
@@ -58,7 +62,7 @@ export function CategoryBreakdown({ spending, month }: CategoryBreakdownProps) {
   };
 
   return (
-    <View>
+    <>
       <View style={styles.titleRow}>
         {parent ? (
           <Pressable
@@ -94,27 +98,33 @@ export function CategoryBreakdown({ spending, month }: CategoryBreakdownProps) {
         </CategoryDonut>
       </View>
 
-      <Animated.View key={parentId ?? 'all'} entering={FadeIn.duration(motion.normal)}>
-        {rows.map((row) => (
-          <ListRow
-            key={row.id}
-            title={row.name}
-            leading={<View style={[styles.dot, { backgroundColor: row.color }]} />}
-            trailing={<Money cents={row.total} />}
-            trailingCaption={
-              <ChangeLabel
-                current={row.total}
-                previous={row.lastMonth}
-                monthLabel={lastMonthName}
+      <Sheet>
+        <ListSection title={parent ? parent.name : 'By category'}>
+          <Animated.View key={parentId ?? 'all'} entering={FadeIn.duration(motion.normal)}>
+            {rows.map((row, i) => (
+              <ListRow
+                key={row.id}
+                title={row.name}
+                leading={<View style={[styles.dot, { backgroundColor: row.color }]} />}
+                trailing={<Money cents={row.total} />}
+                trailingCaption={
+                  <ChangeLabel
+                    current={row.total}
+                    previous={row.lastMonth}
+                    monthLabel={lastMonthName}
+                  />
+                }
+                onPress={parent ? undefined : () => drillInto(row.id)}
+                showChevron={!parent}
+                separator={i < rows.length - 1}
+                accessibilityHint={parent ? undefined : 'Shows sub-categories'}
               />
-            }
-            onPress={parent ? undefined : () => drillInto(row.id)}
-            showChevron={!parent}
-            accessibilityHint={parent ? undefined : 'Shows sub-categories'}
-          />
-        ))}
-      </Animated.View>
-    </View>
+            ))}
+          </Animated.View>
+        </ListSection>
+        {footer}
+      </Sheet>
+    </>
   );
 }
 
@@ -141,7 +151,8 @@ function ChangeLabel({
 
 const styles = StyleSheet.create({
   titleRow: {
-    minHeight: 28,
+    minHeight: 24,
+    alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
@@ -159,7 +170,7 @@ const styles = StyleSheet.create({
   },
   donutWrap: {
     alignItems: 'center',
-    marginVertical: spacing.xl,
+    marginTop: spacing.lg,
   },
   centerLabel: {
     ...type.caption,
@@ -172,9 +183,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginHorizontal: spacing.sm,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
 });

@@ -13,7 +13,7 @@ interface MonthCardsProps {
 /** Sideways-swiping cards summarising each month: saves, interest and withdrawals. */
 export function MonthCards({ months }: MonthCardsProps) {
   const { width } = useWindowDimensions();
-  const cardWidth = Math.min(width - spacing.lg * 2 - spacing.xxl, 340);
+  const cardWidth = Math.min(width - spacing.lg * 2 - spacing.xxl, 320);
   // The last card has nothing to compare with, so it's only used for comparison.
   const shown = months.slice(0, -1);
 
@@ -23,7 +23,6 @@ export function MonthCards({ months }: MonthCardsProps) {
       showsHorizontalScrollIndicator={false}
       snapToInterval={cardWidth + spacing.md}
       decelerationRate="fast"
-      style={styles.scroll}
       contentContainerStyle={styles.row}
     >
       {shown.map((month, i) => {
@@ -71,9 +70,6 @@ function Row({ label, count, cents }: { label: string; count?: number; cents: nu
 }
 
 const styles = StyleSheet.create({
-  scroll: {
-    marginHorizontal: -spacing.lg,
-  },
   row: {
     paddingHorizontal: spacing.lg,
     gap: spacing.md,

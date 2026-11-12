@@ -3,12 +3,12 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { tap } from '@/lib/haptics';
-import { colors, radii, spacing, type } from '@/theme/tokens';
+import { colors, spacing, type } from '@/theme/tokens';
 
 interface ListRowProps {
   title: string;
   subtitle?: string;
-  /** Usually a `CategoryBadge`. */
+  /** An icon or badge on the left. */
   leading?: ReactNode;
   /** Usually a `Money`. */
   trailing?: ReactNode;
@@ -17,9 +17,15 @@ interface ListRowProps {
   onPress?: () => void;
   /** Show a chevron, for rows that drill in. */
   showChevron?: boolean;
+  /** Draw the hairline under this row. Turn off for the last row before a band. */
+  separator?: boolean;
   accessibilityHint?: string;
 }
 
+/**
+ * A full-width list row. The separator starts at the text, not the icon, so a column of icons
+ * reads as one clean edge.
+ */
 export function ListRow({
   title,
   subtitle,
@@ -28,32 +34,35 @@ export function ListRow({
   trailingCaption,
   onPress,
   showChevron = false,
+  separator = true,
   accessibilityHint,
 }: ListRowProps) {
   const content = (pressed: boolean) => (
     <View style={[styles.row, pressed && styles.pressed]}>
       {leading ? <View style={styles.leading}>{leading}</View> : null}
-      <View style={styles.middle}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        {subtitle ? (
-          <Text style={styles.subtitle} numberOfLines={2}>
-            {subtitle}
+      <View style={[styles.body, separator && styles.separator]}>
+        <View style={styles.middle}>
+          <Text style={styles.title} numberOfLines={1}>
+            {title}
           </Text>
+          {subtitle ? (
+            <Text style={styles.subtitle} numberOfLines={2}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        {trailing || trailingCaption ? (
+          <View style={styles.trailing}>
+            {trailing}
+            {typeof trailingCaption === 'string' ? (
+              <Text style={styles.subtitle}>{trailingCaption}</Text>
+            ) : (
+              trailingCaption
+            )}
+          </View>
         ) : null}
+        {showChevron ? <Feather name="chevron-right" size={17} color={colors.textFaint} /> : null}
       </View>
-      <View style={styles.trailing}>
-        {trailing}
-        {typeof trailingCaption === 'string' ? (
-          <Text style={styles.subtitle}>{trailingCaption}</Text>
-        ) : (
-          trailingCaption
-        )}
-      </View>
-      {showChevron ? (
-        <Feather name="chevron-right" size={18} color={colors.textFaint} style={styles.chevron} />
-      ) : null}
     </View>
   );
 
@@ -77,16 +86,28 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radii.md,
-    gap: spacing.md,
+    paddingLeft: spacing.lg + spacing.xs,
   },
   pressed: {
     backgroundColor: colors.raised,
   },
   leading: {
-    flexShrink: 0,
+    width: 36,
+    alignItems: 'center',
+    marginRight: spacing.lg,
+  },
+  body: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    paddingVertical: spacing.md + 2,
+    paddingRight: spacing.lg + spacing.xs,
+  },
+  separator: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
   },
   middle: {
     flex: 1,
@@ -99,12 +120,9 @@ const styles = StyleSheet.create({
   subtitle: {
     ...type.caption,
     color: colors.textMuted,
-    marginTop: 2,
+    marginTop: 3,
   },
   trailing: {
     alignItems: 'flex-end',
-  },
-  chevron: {
-    marginLeft: -spacing.xs,
   },
 });

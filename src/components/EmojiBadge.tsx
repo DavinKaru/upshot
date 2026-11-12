@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '@/theme/tokens';
 
 /** A round badge showing an emoji, used for Savers named with one. */
-export function EmojiBadge({ emoji, size = 40 }: { emoji: string; size?: number }) {
+export function EmojiBadge({ emoji, size = 36 }: { emoji: string; size?: number }) {
   return (
     <View
       style={[styles.badge, { width: size, height: size, borderRadius: size / 2 }]}

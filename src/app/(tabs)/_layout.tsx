@@ -3,6 +3,9 @@ import { TopTabs } from 'expo-router/js-top-tabs';
 import { TopNav } from '@/components/TopNav';
 import { colors } from '@/theme/tokens';
 
+// Upshot's own page sits on the far left, but the app opens on Home.
+export const unstable_settings = { anchor: 'index' };
+
 export default function TabLayout() {
   return (
     <TopTabs
@@ -14,10 +17,10 @@ export default function TabLayout() {
         sceneStyle: { backgroundColor: colors.base },
       }}
     >
+      <TopTabs.Screen name="upshot" options={{ title: 'Upshot' }} />
       <TopTabs.Screen name="index" options={{ title: 'Home' }} />
       <TopTabs.Screen name="insights" options={{ title: 'Insights' }} />
       <TopTabs.Screen name="savers" options={{ title: 'Savers' }} />
-      <TopTabs.Screen name="settings" options={{ title: 'Settings' }} />
     </TopTabs>
   );
 }
