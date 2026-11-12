@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommits"],
+  "timezone": "Australia/Sydney",
+  "schedule": ["before 6am on monday"],
+  "packageRules": [
+    {
+      "description": "The Expo SDK decides these versions. Upgrade them together with `npx expo install --fix` when moving to a new SDK, not one at a time.",
+      "matchPackageNames": [
+        "expo",
+        "expo-*",
+        "@expo/*",
+        "eslint-config-expo",
+        "react",
+        "react-dom",
+        "@types/react",
+        "react-native",
+        "react-native-*",
+        "@react-native/*",
+        "typescript"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Batch small updates to tools into one weekly pull request.",
+      "matchDepTypes": ["devDependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "groupName": "dev tool updates"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
