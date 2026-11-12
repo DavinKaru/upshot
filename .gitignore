@@ -35,3 +35,7 @@ npm-debug.*
 *.orig.*
 *.tsbuildinfo
 .env*.local
+
+# Screenshots of the real Up app, used as a local design reference. They contain personal data
+# and Up's own design, so they are never committed.
+design/reference/
