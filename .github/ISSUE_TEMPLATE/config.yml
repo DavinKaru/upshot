@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/DavinKaru/upshot/security/advisories/new
+    about: Please report security problems privately, not in a public issue.
+  - name: Problems with Up's own app or API
+    url: https://up.com.au
+    about: Upshot isn't part of Up. Contact Up directly about their app, your account or their API.

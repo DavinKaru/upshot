@@ -1,0 +1,51 @@
+name: Bug report
+description: Something in Upshot doesn't work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste your Up personal access token, and don't share real transaction data.**
+        Use the app's demo data, or blur amounts, merchants, names and account numbers in screenshots.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Tap …
+        3. See …
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - iOS
+        - Android
+        - Both
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Device and OS version
+      placeholder: e.g. iPhone 16 on iOS 26.1, or Pixel 9 simulator on Android 16
+  - type: input
+    id: version
+    attributes:
+      label: Upshot version or commit
+      placeholder: e.g. 0.1.0, or a commit hash if you built it yourself
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Logs or screenshots. Check them for personal data first.
