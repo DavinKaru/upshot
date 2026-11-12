@@ -14,14 +14,14 @@ Each user connects their own Up personal access token, and everything stays on t
 - **Views:**
   - **Roadmap:** grouped by Phase.
   - **Board:** grouped by Status.
-  - **Decisions:** filtered to Type = Decision.
+  - **Decisions:** filtered to Kind = Decision.
 - **Fields:**
 
 | Field | Values |
 |---|---|
 | Status | Todo · In progress · Done (GitHub's built-in field; add Ready and In review in the UI if we need them) |
 | Phase | M1 Shell · M2 Connect · M3 Real data · M4 Insights · M5 Release · Later (named Phase because *Milestone* is GitHub's built-in field for repository milestones) |
-| Type | Feature · Design · Chore · Decision · Docs · Security |
+| Kind | Feature · Design · Chore · Decision · Docs · Security (named Kind because *Type* is reserved for GitHub's issue types) |
 | Size | XS · S · M · L |
 
 ---
@@ -43,7 +43,7 @@ screenshots without leaking real data.
 - Two charts render demo data and support scrubbing and haptics.
 - Someone who uses Up would say it "feels like Up" without it copying Up's logo, name or screens.
 
-| Item | Type |
+| Item | Kind |
 |---|---|
 | Add the LICENSE file: GPL-3.0 plus an additional permission (section 7) allowing app store distribution | Docs |
 | Confirm the stack: Expo + TypeScript, expo-router, development builds | Decision |
@@ -72,7 +72,7 @@ doesn't fetch or store any transactions yet; that's M3.
 - The token sits only in the Keychain or Keystore, and opening the app requires Face ID or a
   fingerprint.
 
-| Item | Type |
+| Item | Kind |
 |---|---|
 | Threat model doc: risks of a leaked token (data exposure, tag and category edits, webhook exfiltration), and how we mitigate them | Security |
 | Onboarding walkthrough: what a personal access token is, how to create one in the Up app (Data Sharing → Personal Access Token), and choosing how long it lasts | Feature |
@@ -91,7 +91,7 @@ doesn't fetch or store any transactions yet; that's M3.
 - A user with several years of history can sync fully and then keep their data up to date.
 - The database is shown to be encrypted on disk.
 
-| Item | Type |
+| Item | Kind |
 |---|---|
 | Encrypted SQLite (expo-sqlite with SQLCipher) and Drizzle schema; generate a key and keep it in SecureStore | Feature |
 | Startup check: `PRAGMA cipher_version`, refusing to run if the database isn't encrypted | Security |
@@ -105,7 +105,7 @@ doesn't fetch or store any transactions yet; that's M3.
 
 **Goal:** a small set of insights you can't get in Up's own app. Keep V1 basic.
 
-| Item | Type |
+| Item | Kind |
 |---|---|
 | Monthly summary: money in, money out, net, and the change from last month | Feature |
 | Spending pace: cumulative spending this month vs last month, with scrubbing (reuses the Chart 1 component) | Feature |
@@ -119,7 +119,7 @@ doesn't fetch or store any transactions yet; that's M3.
 
 **Goal:** Upshot is publicly available on TestFlight and in Google Play internal testing.
 
-| Item | Type |
+| Item | Kind |
 |---|---|
 | Choose the analytics provider (Aptabase or Plausible Events API), off by default | Decision |
 | Opt-in analytics: a few anonymous events, never amounts or merchants | Feature |

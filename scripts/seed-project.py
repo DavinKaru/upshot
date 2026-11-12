@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create the public Upshot GitHub Project from ROADMAP.md.
 
-ROADMAP.md is the source of truth: every "| Item | Type |" table row under an
+ROADMAP.md is the source of truth: every "| Item | Kind |" table row under an
 "## M<n> — ..." heading becomes a draft item, and every bullet under "## Later"
 becomes a draft item in the Later milestone.
 
@@ -78,8 +78,8 @@ def parse_roadmap(path):
             if kind in TYPES:
                 items.append({"title": make_title(text), "body": plain(text),
                               "milestone": milestone, "type": kind})
-            elif kind != "Type" and not set(kind) <= set("-: "):
-                sys.exit(f"Unknown Type {kind!r} in ROADMAP.md row: {line}")
+            elif kind != "Kind" and not set(kind) <= set("-: "):
+                sys.exit(f"Unknown Kind {kind!r} in ROADMAP.md row: {line}")
             continue
 
         bullet = re.match(r"^- (.+)$", line)
@@ -123,8 +123,8 @@ def apply(items):
         return {f["name"]: f for f in gh_json("project", "field-list", number, "--owner", OWNER)["fields"]}
 
     fields = load_fields()
-    # Our milestones go in "Phase": "Milestone" is GitHub's built-in field for repository milestones.
-    for name, options in [("Phase", list(MILESTONES.values())), ("Type", TYPES), ("Size", SIZES)]:
+    # GitHub reserves "Milestone" (repository milestones) and "Type" (issue types), hence "Phase" and "Kind".
+    for name, options in [("Phase", list(MILESTONES.values())), ("Kind", TYPES), ("Size", SIZES)]:
         if name not in fields:
             gh("project", "field-create", number, "--owner", OWNER, "--name", name,
                "--data-type", "SINGLE_SELECT", "--single-select-options", ",".join(options))
@@ -153,7 +153,7 @@ def apply(items):
         body = f"{item['body']}\n\nSource: ROADMAP.md, {item['milestone']}."
         created = gh_json("project", "item-create", number, "--owner", OWNER,
                           "--title", item["title"], "--body", body)
-        for key, name in (("milestone", "Phase"), ("type", "Type")):
+        for key, name in (("milestone", "Phase"), ("type", "Kind")):
             gh("project", "item-edit", "--id", created["id"], "--project-id", project_id,
                "--field-id", fields[name]["id"],
                "--single-select-option-id", option_id(name, item[key]))
@@ -161,7 +161,7 @@ def apply(items):
 
     print(f"\nCreated https://github.com/users/{OWNER}/projects/{number}")
     print("Views can't be created through the API. Add these in the UI:")
-    print("  Roadmap (group by Phase), Board (group by Status), Decisions (filter Type:Decision)")
+    print("  Roadmap (group by Phase), Board (group by Status), Decisions (filter Kind:Decision)")
 
 
 def main():
