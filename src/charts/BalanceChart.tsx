@@ -32,6 +32,10 @@ interface BalanceChartProps {
 
 /** Room above the line for the scrub handle. */
 const TOP = 26;
+// Springs for the particles moving out of the way of a finger. Pressing is near instant; letting
+// go settles back in about a third of a second with a small wobble.
+const TOUCH_IN = { damping: 30, stiffness: 1000 };
+const TOUCH_OUT = { damping: 18, stiffness: 480 };
 
 /**
  * A Saver's balance over time, drawn as particles packed under an invisible line. Drag across
@@ -102,7 +106,8 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
       cursorOpacity.value = withTiming(1, { duration: motion.fast });
       touchX.value = event.x;
       touchY.value = event.y;
-      touchStrength.value = reduceMotion ? 0 : withSpring(1, { damping: 16, stiffness: 220 });
+      // Snap open quickly, with only a hint of overshoot.
+      touchStrength.value = reduceMotion ? 0 : withSpring(1, TOUCH_IN);
       scheduleOnRN(onIndexChange, index);
       scheduleOnRN(onScrubbing, true);
     },
@@ -119,7 +124,7 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
     onFinalize: () => {
       'worklet';
       // Let go: particles spring back into place, overshooting a touch like liquid settling.
-      touchStrength.value = withSpring(0, { damping: 8, stiffness: 120 });
+      touchStrength.value = withSpring(0, TOUCH_OUT);
       cursorOpacity.value = withTiming(0, { duration: motion.fast }, (finished) => {
         if (finished) cursor.value = -1;
       });

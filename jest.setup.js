@@ -24,7 +24,8 @@ jest.mock('react-native-reanimated', () => {
     useDerivedValue: (compute) => ({ value: compute() }),
     useReducedMotion: () => true,
     withTiming: (value) => value,
-    Easing: { out: identity, in: identity, inOut: identity, cubic: identity },
+    withDelay: (_delay, value) => value,
+    Easing: { out: identity, in: identity, inOut: identity, cubic: identity, quad: identity },
     FadeIn: transition,
     FadeOut: transition,
   };

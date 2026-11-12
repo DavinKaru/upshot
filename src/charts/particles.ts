@@ -158,6 +158,37 @@ export function particlesInRing(
   });
 }
 
+/** Particles in one opacity level of a ring, as flat arrays that copy cheaply to the UI thread. */
+export interface RingLayer {
+  xs: number[];
+  ys: number[];
+  rs: number[];
+  /** Each particle's angle, in degrees clockwise from 12 o'clock. */
+  angles: number[];
+}
+
+/**
+ * A whole ring of particles, grouped by opacity level. Segments are drawn by picking the particles
+ * whose angle falls inside them, so the particles never move: a segment growing or shrinking just
+ * changes which colour each particle is drawn in.
+ */
+export function ringLayers(
+  cx: number,
+  cy: number,
+  outerRadius: number,
+  band: BandOptions,
+): RingLayer[] {
+  const [ring = []] = particlesInRing([{ start: 0, sweep: 360 }], cx, cy, outerRadius, band);
+  return bucketByAlpha(ring).map((bucket) => ({
+    xs: bucket.map((p) => p.x),
+    ys: bucket.map((p) => p.y),
+    rs: bucket.map((p) => p.r),
+    angles: bucket.map(
+      (p) => ((((Math.atan2(p.y - cy, p.x - cx) * 180) / Math.PI + 90) % 360) + 360) % 360,
+    ),
+  }));
+}
+
 /** The opacity levels particles are drawn at. Fewer levels means fewer draw calls. */
 export const ALPHA_LEVELS = [0.3, 0.55, 0.8, 1] as const;
 
@@ -179,12 +210,13 @@ export function bucketByAlpha(particles: readonly Particle[]): Particle[][] {
 }
 
 /** How far from the finger particles react, and how far the closest ones are pushed, in points. */
-export const TOUCH_RADIUS = 72;
-export const TOUCH_PUSH = 30;
+export const TOUCH_RADIUS = 70;
+export const TOUCH_PUSH = 36;
 
 /**
- * How far a particle at (`px`, `py`) is pushed away from a finger at (`tx`, `ty`). The push is
- * strongest right under the finger and eases to nothing at `radius`. `strength` (0–1) fades the
+ * How far a particle at (`px`, `py`) is pushed away from a finger at (`tx`, `ty`). Everything
+ * well inside `radius` is pushed almost the full distance, then the push drops off quickly near
+ * the edge, so the finger clears a crisp hole rather than a soft dent. `strength` (0–1) fades the
  * whole effect in and out, and springs past 0 briefly as particles settle back.
  */
 export function pushFromTouch(
@@ -203,7 +235,8 @@ export function pushFromTouch(
   if (strength === 0 || Math.abs(ox) > radius || Math.abs(oy) > radius) return { dx: 0, dy: 0 };
   const distance = Math.sqrt(ox * ox + oy * oy);
   if (distance >= radius) return { dx: 0, dy: 0 };
-  const falloff = 1 - distance / radius;
+  const t = distance / radius;
+  const falloff = 1 - t * t;
   const amount = falloff * falloff * push * strength;
   // Particles right under the finger have no direction; nudge them upwards.
   if (distance < 0.001) return { dx: 0, dy: -amount };

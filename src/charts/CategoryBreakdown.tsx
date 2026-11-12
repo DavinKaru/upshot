@@ -34,21 +34,29 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
   const parent = spending.parents.find((p) => p.id === parentId) ?? null;
   const lastMonthName = formatMonth(previousMonth(month)).slice(0, 3);
 
-  const rows: (CategorySpend & { color: string })[] = useMemo(() => {
-    if (parent) {
-      const tints = shades(
-        colors.category[categoryColorKey(parent.id)],
-        parent.children.length,
-        colors.base,
-      );
-      return parent.children.map((child, i) => ({ ...child, color: tints[i] ?? colors.textMuted }));
-    }
-    return spending.parents.map((p) => ({ ...p, color: colors.category[categoryColorKey(p.id)] }));
-  }, [parent, spending.parents]);
+  const topRows = useMemo(
+    () => spending.parents.map((p) => ({ ...p, color: colors.category[categoryColorKey(p.id)] })),
+    [spending.parents],
+  );
+  const childRows = useMemo(() => {
+    if (!parent) return [];
+    const tints = shades(
+      colors.category[categoryColorKey(parent.id)],
+      parent.children.length,
+      colors.base,
+    );
+    return parent.children.map((child, i) => ({ ...child, color: tints[i] ?? colors.textMuted }));
+  }, [parent]);
+  const rows: (CategorySpend & { color: string })[] = parent ? childRows : topRows;
 
+  // The ring always holds the top-level categories; a chosen one opens up to show its parts.
   const donutItems: DonutItem[] = useMemo(
-    () => rows.map((r) => ({ id: r.id, value: r.total, color: r.color })),
-    [rows],
+    () => topRows.map((r) => ({ id: r.id, value: r.total, color: r.color })),
+    [topRows],
+  );
+  const focusItems: DonutItem[] = useMemo(
+    () => childRows.map((r) => ({ id: r.id, value: r.total, color: r.color })),
+    [childRows],
   );
 
   const total = parent ? parent.total : spending.total;
@@ -86,6 +94,8 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
       <View style={styles.donutWrap}>
         <CategoryDonut
           items={donutItems}
+          focusedId={parentId}
+          focusItems={focusItems}
           onSelect={drillInto}
           accessibilityLabel={`${parent ? parent.name : 'Spending'} by category: ${rows
             .filter((r) => r.total > 0)

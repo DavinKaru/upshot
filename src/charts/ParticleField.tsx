@@ -102,8 +102,15 @@ function TouchLayer({ particles, color, opacity, touchX, touchY, strength }: Tou
     for (let i = 0; i < xs.length; i++) {
       const x = xs[i] ?? 0;
       const y = ys[i] ?? 0;
+      const r = rs[i] ?? 1;
+      // Most particles are nowhere near the finger. Skip them before doing any maths, so a
+      // frame doesn't create thousands of throwaway objects.
+      if (s === 0 || Math.abs(x - tx) > radius || Math.abs(y - ty) > radius) {
+        builder.addCircle(x, y, r);
+        continue;
+      }
       const { dx, dy } = pushFromTouch(x, y, tx, ty, s, radius, push);
-      builder.addCircle(x + dx, y + dy, rs[i] ?? 1);
+      builder.addCircle(x + dx, y + dy, r);
     }
   });
 

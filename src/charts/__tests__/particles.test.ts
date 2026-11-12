@@ -5,6 +5,7 @@ import {
   particlesInRing,
   particlesUnderLine,
   pushFromTouch,
+  ringLayers,
   TOUCH_PUSH,
   TOUCH_RADIUS,
 } from '../particles';
@@ -115,5 +116,27 @@ describe('pushFromTouch', () => {
       dx: 0,
       dy: 0,
     });
+  });
+});
+
+describe('ringLayers', () => {
+  it('gives every particle an angle that matches where it sits', () => {
+    const layers = ringLayers(100, 100, 90, {
+      capWidth: 10,
+      falloffWidth: 20,
+      spacing: 3,
+      seed: 3,
+    });
+    expect(layers).toHaveLength(ALPHA_LEVELS.length);
+    const all = layers.flatMap((l) => l.angles.map((a, i) => ({ a, x: l.xs[i]!, y: l.ys[i]! })));
+    expect(all.length).toBeGreaterThan(100);
+    for (const { a, x, y } of all) {
+      expect(a).toBeGreaterThanOrEqual(0);
+      expect(a).toBeLessThan(360);
+      const rad = ((a - 90) * Math.PI) / 180;
+      const r = Math.hypot(x - 100, y - 100);
+      expect(100 + Math.cos(rad) * r).toBeCloseTo(x, 3);
+      expect(100 + Math.sin(rad) * r).toBeCloseTo(y, 3);
+    }
   });
 });
