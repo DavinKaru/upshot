@@ -1,0 +1,17 @@
+import { StyleSheet, View, type ViewProps } from 'react-native';
+
+import { colors, radii, spacing } from '@/theme/tokens';
+
+/** A rounded surface that groups related content. */
+export function Card({ style, ...props }: ViewProps) {
+  return <View style={[styles.card, style]} {...props} />;
+}
+
+const styles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radii.lg,
+    padding: spacing.lg,
+    borderCurve: 'continuous',
+  },
+});
