@@ -19,7 +19,7 @@ Each user connects their own Up personal access token, and everything stays on t
 
 | Field | Values |
 |---|---|
-| Status | Todo · In progress · Done (GitHub's built-in field; add Ready and In review in the UI if we need them) |
+| Status | Todo · In Progress · In Review · Done (GitHub's built-in field) |
 | Phase | M1 Shell · M2 Connect · M3 Real data · M4 Insights · M5 Release · Later (named Phase because *Milestone* is GitHub's built-in field for repository milestones) |
 | Kind | Feature · Design · Chore · Decision · Docs · Security (named Kind because *Type* is reserved for GitHub's issue types) |
 | Size | XS · S · M · L |
