@@ -5,3 +5,33 @@ llms.txt
 __pycache__/
 .claude/settings.local.json
 .claude/.cc-writes/
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+expo-env.d.ts
+
+# Generated native projects (Continuous Native Generation)
+/ios
+/android
+.kotlin/
+
+# Signing keys and certificates
+*.jks
+*.p8
+*.p12
+*.key
+*.pem
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# Logs and local files
+npm-debug.*
+*.orig.*
+*.tsbuildinfo
+.env*.local
