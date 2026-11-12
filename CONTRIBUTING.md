@@ -17,6 +17,9 @@ working on it.
 Follow [Run it locally](README.md#run-it-locally) in the README. You don't need an Up account,
 because the app runs on demo data.
 
+The Expo CLI sends anonymous usage data to Expo by default. CI turns this off, and you can too by
+adding `export EXPO_NO_TELEMETRY=1` to your shell profile.
+
 ## Keeping data private
 
 - **Never commit, paste or screenshot a real personal access token**, whether in code, issues, pull

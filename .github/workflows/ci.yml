@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # Upshot is privacy-first: the Expo CLI sends no usage data from CI.
+  EXPO_NO_TELEMETRY: 1
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
