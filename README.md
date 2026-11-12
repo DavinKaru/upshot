@@ -55,6 +55,7 @@ Before opening a pull request, run:
 npm run lint
 npm run typecheck
 npm run format:check
+npm test
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more.

@@ -47,6 +47,7 @@ icons, fonts or other assets, or use Up's name in a way that suggests Upshot is 
    npm run lint
    npm run typecheck
    npm run format:check
+   npm test
    ```
 
 5. In the pull request, say what changed and why. For visual changes, include before and after
