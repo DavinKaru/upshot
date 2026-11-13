@@ -1,5 +1,5 @@
 import Feather from '@expo/vector-icons/Feather';
-import { useNavigation } from 'expo-router';
+import { useIsFocused, useNavigation } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -26,6 +26,8 @@ export default function SaversScreen() {
   const { transactions, generatedAt } = useBankData();
   const { savers } = useAccounts();
   const navigation = useNavigation();
+  // The months drain as the screen comes into view, and only slosh while it's showing.
+  const focused = useIsFocused();
   const [scrubbing, setScrubbing] = useState(false);
 
   const rate = useMemo(
@@ -56,7 +58,7 @@ export default function SaversScreen() {
   return (
     <Screen scrollEnabled={!scrubbing}>
       <View style={styles.chart}>
-        <SavingsRateChart rate={rate} onScrubbingChange={onScrubbingChange} />
+        <SavingsRateChart rate={rate} onScrubbingChange={onScrubbingChange} visible={focused} />
       </View>
 
       <Sheet>
@@ -120,7 +122,7 @@ export default function SaversScreen() {
 
         <Text style={styles.footnote}>
           Moving money between your own accounts, like into a Saver, doesn&apos;t count as coming in
-          or going out. Tap or drag across a month to see it.
+          or going out. Tap a month to watch it drain again, or tilt your phone.
         </Text>
       </Sheet>
     </Screen>

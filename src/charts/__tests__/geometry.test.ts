@@ -211,7 +211,7 @@ describe('buildBarChart', () => {
   const insets = { top: 10, bottom: 10, left: 0, right: 0 };
 
   it('gives each value an equal slot and grows bars from zero', () => {
-    const chart = buildBarChart([0.2, 0.4], 200, 120, insets, null, 0.5);
+    const chart = buildBarChart([0.2, 0.4], 200, 120, insets, { gap: 0.5 });
     expect(chart.bars.map((b) => b.cx)).toEqual([50, 150]);
     expect((chart.bars[0]?.x1 ?? 0) - (chart.bars[0]?.x0 ?? 0)).toBeCloseTo(50);
     expect(chart.zeroY).toBeCloseTo(110);
@@ -220,12 +220,19 @@ describe('buildBarChart', () => {
   });
 
   it('makes room below zero for negative values and keeps the reference on the chart', () => {
-    const chart = buildBarChart([-0.1, 0.3, null], 300, 120, insets, 0.5);
+    const chart = buildBarChart([-0.1, 0.3, null], 300, 120, insets, { reference: 0.5 });
     expect(chart.zeroY).toBeLessThan(110);
     expect(chart.bars[0]?.y).toBeGreaterThan(chart.zeroY);
     expect(chart.bars[2]?.y).toBeCloseTo(chart.zeroY);
     expect(chart.referenceY).toBeGreaterThanOrEqual(10);
     expect(chart.referenceY).toBeLessThan(chart.bars[1]?.y ?? 0);
+  });
+
+  it('stretches the scale to reach anything it must include', () => {
+    const chart = buildBarChart([0.2, 0.3], 200, 120, insets, { include: [1] });
+    expect(chart.y(1)).toBeGreaterThanOrEqual(10);
+    expect(chart.y(1)).toBeLessThan(chart.bars[1]?.y ?? 0);
+    expect(chart.y(0)).toBeCloseTo(chart.zeroY);
   });
 
   it('finds the slot under a touch, clamped to the chart', () => {

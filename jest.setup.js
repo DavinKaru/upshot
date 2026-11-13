@@ -43,6 +43,15 @@ jest.mock('expo-haptics', () => ({
   ImpactFeedbackStyle: { Light: 'light', Medium: 'medium', Heavy: 'heavy' },
 }));
 
+// No motion sensor in tests, so charts stay level.
+jest.mock('expo-sensors', () => ({
+  Accelerometer: {
+    isAvailableAsync: jest.fn(() => Promise.resolve(false)),
+    setUpdateInterval: jest.fn(),
+    addListener: jest.fn(() => ({ remove: jest.fn() })),
+  },
+}));
+
 // Skia draws natively, so in tests its components render nothing and paths are stand-ins.
 jest.mock('@shopify/react-native-skia', () => {
   const Nothing = () => null;

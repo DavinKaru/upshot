@@ -285,25 +285,35 @@ export interface BarChartGeometry {
   zeroY: number;
   /** Screen y of `reference`, if one was given. */
   referenceY: number | null;
+  /** Screen y of any value on the chart's scale. */
+  y: (value: number) => number;
+}
+
+export interface BarChartOptions {
+  /** A value to draw a reference line at, such as an average. Always kept on the chart. */
+  reference?: number | null;
+  /** Other values the scale must reach, such as a ceiling bars can grow to. */
+  include?: readonly number[];
+  /** The share of each slot left as a gap between bars. */
+  gap?: number;
 }
 
 /**
- * Lays out one bar per value across `width`, each in an equal slot, with `gap` as a share of the
- * slot left between bars. Bars grow up from zero for positive values and down for negative ones,
- * and the scale always includes zero and `reference`, so a reference line stays on the chart.
+ * Lays out one bar per value across `width`, each in an equal slot. Bars grow up from zero for
+ * positive values and down for negative ones, and the scale always includes zero, the reference
+ * and anything in `include`.
  */
 export function buildBarChart(
   values: readonly (number | null)[],
   width: number,
   height: number,
   insets: ChartInsets,
-  reference: number | null = null,
-  gap = 0.36,
+  { reference = null, include = [], gap = 0.36 }: BarChartOptions = {},
 ): BarChartGeometry {
   if (values.length === 0 || width <= 0 || height <= 0) {
-    return { bars: [], zeroY: height, referenceY: null };
+    return { bars: [], zeroY: height, referenceY: null, y: () => height };
   }
-  const known = values.filter((v): v is number => v !== null);
+  const known = values.filter((v): v is number => v !== null).concat(include);
   if (reference !== null) known.push(reference);
   const max = Math.max(0, ...known);
   const min = Math.min(0, ...known);
@@ -318,7 +328,12 @@ export function buildBarChart(
     const cx = insets.left + slot * (i + 0.5);
     return { x0: cx - barWidth / 2, x1: cx + barWidth / 2, cx, y: y(value ?? 0) };
   });
-  return { bars, zeroY: y(0), referenceY: reference === null ? null : y(reference) };
+  return {
+    bars,
+    zeroY: y(0),
+    referenceY: reference === null ? null : y(reference),
+    y: (value: number) => y(value),
+  };
 }
 
 /** The index of the slot under `x`, clamped to the chart. `bars` must be sorted. */

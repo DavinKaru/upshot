@@ -31,7 +31,13 @@
           "imageWidth": 76
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-sensors",
+        {
+          "motionPermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

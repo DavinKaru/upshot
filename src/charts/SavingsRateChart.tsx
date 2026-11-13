@@ -1,4 +1,13 @@
-import { Canvas, DashPathEffect, Group, Line, rect, vec } from '@shopify/react-native-skia';
+import {
+  Canvas,
+  DashPathEffect,
+  Group,
+  Line,
+  Path,
+  rect,
+  usePathValue,
+  vec,
+} from '@shopify/react-native-skia';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import {
@@ -12,6 +21,7 @@ import {
   useDerivedValue,
   useReducedMotion,
   useSharedValue,
+  withDelay,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -21,17 +31,31 @@ import { formatMonth, formatShortMonth, parseMonthKey } from '@/insights/dates';
 import type { MonthFlow, SavingsRate } from '@/insights/savingsRate';
 import { tick } from '@/lib/haptics';
 import { formatMoneyRounded } from '@/lib/money';
+import { useTilt } from '@/lib/useTilt';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
-import { barAt, buildBarChart } from './geometry';
-import { ParticleField } from './ParticleField';
-import { DEFAULT_BAND, particlesInBar, type Particle } from './particles';
+import {
+  barLayers,
+  drained,
+  drainLayers,
+  sloshX,
+  sloshY,
+  type BarLayer,
+  type DrainLayer,
+} from './drain';
+import { barAt, buildBarChart, type BarSlot } from './geometry';
+import { ALPHA_LEVELS, DEFAULT_BAND, type BandOptions } from './particles';
 
 interface SavingsRateChartProps {
   rate: SavingsRate;
   height?: number;
   /** Called with `true` from the moment a finger lands on the chart until it lifts. */
   onScrubbingChange?: (scrubbing: boolean) => void;
+  /**
+   * Whether the chart is on screen. The months drain each time it comes into view, and the
+   * particles only slosh with the phone's tilt while it's showing.
+   */
+  visible?: boolean;
 }
 
 const TOP = 14;
@@ -40,6 +64,29 @@ const BOTTOM = 6;
 const LABEL_WIDTH = 40;
 /** How far the months you're not looking at fade back. */
 const DIMMED = 0.28;
+/** How long a month takes to drain down to what was kept. */
+const DRAIN_MS = 1300;
+/** Months drain one after another on first showing, this far apart. */
+const DRAIN_STAGGER = 110;
+
+const barBand = (seed: number): BandOptions => ({
+  ...DEFAULT_BAND,
+  spacing: 3.8,
+  scatter: 8,
+  // A bar is only a few beads wide, so one cluster of big beads would swamp it.
+  clusterChance: 0.01,
+  seed,
+});
+
+interface MonthBar {
+  slot: BarSlot;
+  /** What was kept, from zero to the month's rate. */
+  kept: BarLayer[];
+  /** What was spent, from the rate (or zero) up to 100%, which drains away. */
+  spent: DrainLayer[];
+  /** More went out than came in, so the kept bar sits below zero. */
+  negative: boolean;
+}
 
 /** "29%", or "-9%" when more went out than came in. */
 export function formatRate(rate: number | null): string {
@@ -58,13 +105,36 @@ function describeMonth(month: MonthFlow): string {
 
 /**
  * How much of what came in you kept, month by month, as particle bars against your average.
- * The headline is the average; tap or drag across a month to read it, and tap it again to go
- * back to the average.
+ *
+ * Each month starts as a full column of everything that came in, then what was spent floats
+ * away, leaving what was kept. The headline is the average; tap a month to read it (and watch
+ * it drain again), drag across to compare, and tap it again to go back to the average. Tilt the
+ * phone and the particles slosh.
  */
-export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: SavingsRateChartProps) {
+export function SavingsRateChart({
+  rate,
+  height = 230,
+  onScrubbingChange,
+  visible = true,
+}: SavingsRateChartProps) {
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  // How many times each month has been tapped, to drain it again.
+  const [replays, setReplays] = useState<Record<number, number>>({});
+  // The month last tapped, which drains on its own straight away.
+  const [tapped, setTapped] = useState<number | null>(null);
+  // How many times the chart has come into view; the months drain again each time.
+  const [visits, setVisits] = useState(0);
+  const [wasVisible, setWasVisible] = useState(false);
+  if (visible !== wasVisible) {
+    setWasVisible(visible);
+    if (visible) {
+      setVisits((v) => v + 1);
+      setTapped(null);
+    }
+  }
   const reduceMotion = useReducedMotion();
+  const tilt = useTilt(visible && !reduceMotion);
   const { months, average } = rate;
 
   const geometry = useMemo(
@@ -74,35 +144,50 @@ export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: Savi
         width,
         height,
         { top: TOP, bottom: BOTTOM, left: 0, right: LABEL_WIDTH },
-        average,
+        // Room for a full column: everything that came in.
+        { reference: average, include: [1] },
       ),
     [months, average, width, height],
   );
-  const bars = useMemo(
+  const bars: MonthBar[] = useMemo(
     () =>
-      geometry.bars.map((bar, i) =>
-        particlesInBar(bar.x0, bar.x1, bar.y, geometry.zeroY, {
-          ...DEFAULT_BAND,
-          spacing: 3.8,
-          scatter: 8,
-          // A bar is only a few beads wide, so one cluster of big beads would swamp it.
-          clusterChance: 0.01,
-          seed: 7 + i,
-        }),
-      ),
-    [geometry],
+      geometry.bars.map((slot, i) => {
+        const month = months[i];
+        const { zeroY } = geometry;
+        const negative = (month?.kept ?? 0) < 0;
+        const cameIn = (month?.moneyIn ?? 0) > 0;
+        return {
+          slot,
+          kept: barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(7 + i)),
+          spent: cameIn
+            ? drainLayers(
+                slot.x0,
+                slot.x1,
+                geometry.y(1),
+                negative ? zeroY : slot.y,
+                zeroY,
+                barBand(101 + i),
+              )
+            : [],
+          negative,
+        };
+      }),
+    [geometry, months],
   );
 
-  // Bars grow out of the zero line, up or down, whenever the data changes.
+  // Columns grow out of the zero line the first time they're seen, and whenever the data
+  // changes after that.
   const progress = useSharedValue(0);
+  const seen = visits > 0;
   useEffect(() => {
     if (reduceMotion) {
       progress.value = 1;
       return;
     }
+    if (!seen) return;
     progress.value = 0;
     progress.value = withTiming(1, { duration: motion.chart, easing: Easing.out(Easing.cubic) });
-  }, [bars, progress, reduceMotion]);
+  }, [bars, seen, progress, reduceMotion]);
   const { zeroY } = geometry;
   const labelsClash = geometry.referenceY !== null && Math.abs(geometry.referenceY - zeroY) < 14;
   const clip = useDerivedValue(() =>
@@ -116,6 +201,16 @@ export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: Savi
     setSelected(index < 0 ? null : index);
     tick();
   }, []);
+  const onTap = useCallback(
+    (index: number) => {
+      onSelect(index);
+      // Tapping a month plays its drain again.
+      if (index < 0) return;
+      setTapped(index);
+      setReplays((r) => ({ ...r, [index]: (r[index] ?? 0) + 1 }));
+    },
+    [onSelect],
+  );
   const onScrubbing = useCallback(
     (scrubbing: boolean) => onScrubbingChange?.(scrubbing),
     [onScrubbingChange],
@@ -149,7 +244,7 @@ export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: Savi
       // Tapping the month you're on goes back to the average.
       const next = index === active.value ? -1 : index;
       active.value = next;
-      scheduleOnRN(onSelect, next);
+      scheduleOnRN(onTap, next);
     },
   });
   const gesture = useCompetingGestures(pan, tap);
@@ -196,13 +291,22 @@ export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: Savi
                 strokeWidth={1}
               />
               <Group clip={clip}>
-                {bars.map((particles, i) => (
+                {bars.map((bar, i) => (
                   <Bar
                     key={months[i]?.month ?? i}
                     index={i}
+                    bar={bar}
+                    zeroY={zeroY}
                     active={active}
-                    particles={particles}
-                    color={(months[i]?.kept ?? 0) < 0 ? colors.textMuted : colors.accent}
+                    tilt={tilt}
+                    ready={seen}
+                    trigger={`${visits}:${replays[i] ?? 0}`}
+                    delay={
+                      tapped === i
+                        ? 80
+                        : (visits > 1 ? 250 : motion.chart * 0.7) + i * DRAIN_STAGGER
+                    }
+                    reduceMotion={reduceMotion}
                   />
                 ))}
               </Group>
@@ -254,24 +358,154 @@ export function SavingsRateChart({ rate, height = 190, onScrubbingChange }: Savi
   );
 }
 
-/** One month's bar, faded back while another month is chosen. */
-function Bar({
-  index,
-  active,
-  particles,
-  color,
-}: {
+interface BarProps {
   index: number;
+  bar: MonthBar;
+  zeroY: number;
+  /** The chosen month, or -1. */
   active: SharedValue<number>;
-  particles: readonly Particle[];
-  color: string;
-}) {
+  tilt: SharedValue<number>;
+  /** False until the chart has been on screen, so the columns wait, full, to be seen. */
+  ready: boolean;
+  /** Changes whenever the month should drain again: the chart coming into view, or a tap. */
+  trigger: string;
+  /** How long to wait before draining. */
+  delay: number;
+  reduceMotion: boolean;
+}
+
+/**
+ * One month: a full column that drains down to what was kept, faded back while another month
+ * is chosen. A month where more went out than came in drains away completely, and its grey bar
+ * below zero appears as the last of it goes.
+ */
+function Bar({ index, bar, zeroY, active, tilt, ready, trigger, delay, reduceMotion }: BarProps) {
+  const drain = useSharedValue(reduceMotion ? 1 : 0);
+  const { kept, spent, negative, slot } = bar;
+
+  useEffect(() => {
+    if (reduceMotion) {
+      drain.value = 1;
+      return;
+    }
+    drain.value = 0;
+    if (!ready) return;
+    drain.value = withDelay(delay, withTiming(1, { duration: DRAIN_MS, easing: Easing.linear }));
+    // `delay` is left out on purpose: it changes with the tap that also changes `trigger`, and
+    // a new delay alone shouldn't drain the month again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, trigger, spent, reduceMotion, drain]);
+
   const opacity = useDerivedValue(() => (active.value < 0 || active.value === index ? 1 : DIMMED));
+  const keptOpacity = useDerivedValue(() =>
+    negative ? Math.min(Math.max((drain.value - 0.6) / 0.4, 0), 1) : 1,
+  );
+
   return (
     <Group opacity={opacity}>
-      <ParticleField particles={particles} color={color} />
+      {spent.map((layer, level) =>
+        layer.xs.length > 0 ? (
+          <SpentLayer
+            key={`spent-${level}`}
+            layer={layer}
+            slot={slot}
+            zeroY={zeroY}
+            drain={drain}
+            tilt={tilt}
+            opacity={ALPHA_LEVELS[level] ?? 1}
+          />
+        ) : null,
+      )}
+      <Group opacity={keptOpacity}>
+        {kept.map((layer, level) =>
+          layer.xs.length > 0 ? (
+            <KeptLayer
+              key={`kept-${level}`}
+              layer={layer}
+              slot={slot}
+              zeroY={zeroY}
+              tilt={tilt}
+              color={negative ? colors.textMuted : colors.accent}
+              opacity={ALPHA_LEVELS[level] ?? 1}
+            />
+          ) : null,
+        )}
+      </Group>
     </Group>
   );
+}
+
+interface LayerProps {
+  slot: BarSlot;
+  zeroY: number;
+  tilt: SharedValue<number>;
+  opacity: number;
+}
+
+/** What was kept at one opacity level, sloshing as the phone tilts. */
+function KeptLayer({
+  layer,
+  slot,
+  zeroY,
+  tilt,
+  color,
+  opacity,
+}: LayerProps & { layer: BarLayer; color: string }) {
+  const { xs, ys, rs, weights, loose } = layer;
+  const { x0, x1, cx } = slot;
+  const path = usePathValue((builder) => {
+    'worklet';
+    const t = tilt.value;
+    for (let i = 0; i < xs.length; i++) {
+      const x = xs[i] ?? 0;
+      const y = ys[i] ?? 0;
+      const r = rs[i] ?? 1;
+      if (t === 0) {
+        builder.addCircle(x, y, r);
+        continue;
+      }
+      builder.addCircle(
+        sloshX(x, loose[i] ?? 0, t, x0, x1),
+        sloshY(y, x, weights[i] ?? 0, t, cx, zeroY),
+        r,
+      );
+    }
+  });
+  return <Path path={path} color={color} opacity={opacity} />;
+}
+
+/** What was spent at one opacity level, floating away as the month drains. */
+function SpentLayer({
+  layer,
+  slot,
+  zeroY,
+  drain,
+  tilt,
+  opacity,
+}: LayerProps & { layer: DrainLayer; drain: SharedValue<number> }) {
+  const { xs, ys, rs, weights, loose, starts, dxs, dys } = layer;
+  const { x0, x1, cx } = slot;
+  const path = usePathValue((builder) => {
+    'worklet';
+    const d = drain.value;
+    if (d >= 1) return;
+    const t = tilt.value;
+    for (let i = 0; i < xs.length; i++) {
+      const gone = drained(d, starts[i] ?? 0);
+      if (gone >= 1) continue;
+      const x = xs[i] ?? 0;
+      const y = ys[i] ?? 0;
+      const sx = t === 0 ? x : sloshX(x, loose[i] ?? 0, t, x0, x1);
+      const sy = t === 0 ? y : sloshY(y, x, weights[i] ?? 0, t, cx, zeroY);
+      // Once a particle lifts off it's free of the bar, so it can float past the edges.
+      builder.addCircle(
+        sx + (dxs[i] ?? 0) * gone,
+        sy + (dys[i] ?? 0) * gone,
+        (rs[i] ?? 1) * (1 - gone),
+      );
+    }
+  });
+  return <Path path={path} color={colors.accent} opacity={opacity} />;
 }
 
 const styles = StyleSheet.create({

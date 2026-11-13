@@ -18,6 +18,14 @@ never see them.
 
 Disconnecting in the app deletes both.
 
+## What the app reads from your phone
+
+| What | When | Why |
+|---|---|---|
+| The motion sensor (accelerometer) | Only while the Savers screen is showing | So the chart's particles slosh when you tilt your phone. Readings are used on the spot and never stored or sent anywhere. |
+
+Upshot doesn't ask for Motion & Fitness access, as it never reads your steps or activity.
+
 ## Who the app will talk to
 
 | Host | Why |
