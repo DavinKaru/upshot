@@ -43,7 +43,13 @@ interface CategoryDonutProps {
   accessibilityLabel: string;
 }
 
-const RING_BAND: BandOptions = { ...DEFAULT_BAND, capWidth: 12, falloffWidth: 36, spacing: 3 };
+const RING_BAND: BandOptions = {
+  ...DEFAULT_BAND,
+  spacing: 4,
+  spread: 7,
+  maxDepth: 38,
+  scatter: 3.4,
+};
 const GAP = 5;
 const EXPAND = { duration: 520, easing: Easing.inOut(Easing.cubic) };
 const SWAP = { duration: 220, easing: Easing.out(Easing.quad) };
@@ -151,7 +157,7 @@ export function CategoryDonut({
         event.y,
         center,
         center,
-        outer - RING_BAND.capWidth - RING_BAND.falloffWidth,
+        outer - RING_BAND.maxDepth,
         outer + 8,
       );
       if (index >= 0) scheduleOnRN(select, index);

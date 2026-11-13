@@ -1,4 +1,4 @@
-import { Canvas, Circle, Group, Line, rect, vec } from '@shopify/react-native-skia';
+import { Canvas, Circle, DashPathEffect, Group, Line, rect, vec } from '@shopify/react-native-skia';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 import { GestureDetector, usePanGesture } from 'react-native-gesture-handler';
@@ -20,7 +20,7 @@ import { formatMoney, formatMoneyRounded } from '@/lib/money';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
 import { buildLineChart, nearestIndex } from './geometry';
-import { DotGrid, TouchParticleField } from './ParticleField';
+import { TouchParticleField } from './ParticleField';
 import { DEFAULT_BAND, particlesUnderLine } from './particles';
 
 interface BalanceChartProps {
@@ -52,8 +52,8 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
         points.map((p) => p.balance),
         width,
         height,
-        // Leave the lower part of the chart for the particles to fall away into.
-        { top: TOP, bottom: height * 0.3, left: 0, right: 0 },
+        // Leave a little room under the lowest point for the particles to fall away into.
+        { top: TOP, bottom: height * 0.16, left: 0, right: 0 },
       ),
     [points, width, height],
   );
@@ -142,6 +142,9 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
   const min = values.length ? Math.min(...values) : 0;
 
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
+  // Screen y of the highest and lowest balance, for the axis labels and the floor line.
+  const highY = geometry.ys.length ? Math.min(...geometry.ys) : TOP;
+  const lowY = geometry.ys.length ? Math.max(...geometry.ys) : height;
 
   return (
     <View>
@@ -155,7 +158,7 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
       </View>
       <GestureDetector gesture={pan}>
         <View
-          style={{ height }}
+          style={[styles.chart, { height }]}
           onLayout={onLayout}
           accessible
           accessibilityRole="image"
@@ -167,13 +170,10 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
         >
           {width > 0 ? (
             <Canvas style={StyleSheet.absoluteFill}>
-              <DotGrid
-                width={width}
-                height={height - 1}
-                rows={3}
-                columns={5}
-                color={colors.border}
-              />
+              {/* A dashed line marks the lowest balance, like the floor of the chart. */}
+              <Line p1={vec(0, lowY)} p2={vec(width, lowY)} color={colors.border} strokeWidth={1}>
+                <DashPathEffect intervals={[4, 5]} />
+              </Line>
               <Group clip={clip} transform={rise}>
                 <TouchParticleField
                   particles={particles}
@@ -194,8 +194,10 @@ export function BalanceChart({ points, height = 280, onScrubbingChange }: Balanc
               </Group>
             </Canvas>
           ) : null}
-          <Text style={[styles.axis, styles.axisTop]}>{formatMoneyRounded(max)}</Text>
-          <Text style={[styles.axis, styles.axisBottom]}>{formatMoneyRounded(min)}</Text>
+          <Text style={[styles.axis, { top: Math.max(highY - 22, 0) }]}>
+            {formatMoneyRounded(max)}
+          </Text>
+          <Text style={[styles.axis, { top: lowY - 18 }]}>{formatMoneyRounded(min)}</Text>
         </View>
       </GestureDetector>
     </View>
@@ -212,17 +214,15 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: spacing.xs,
   },
+  chart: {
+    // Edge to edge, past the screen's side padding.
+    marginHorizontal: -spacing.lg,
+  },
   axis: {
     ...type.caption,
     position: 'absolute',
-    right: 0,
+    right: spacing.lg,
     color: colors.textFaint,
     fontSize: 11,
-  },
-  axisTop: {
-    top: TOP - 6,
-  },
-  axisBottom: {
-    bottom: spacing.xs,
   },
 });

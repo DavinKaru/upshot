@@ -3,10 +3,13 @@ import { createRandom, type Random } from '@/lib/random';
 /**
  * Particle layouts for Upshot's charts, in the style of Up's Saver Insights.
  *
- * A chart is an invisible line (or ring) with particles packed underneath it in two bands:
+ * A chart is an invisible line (or ring) traced by a string of small particles, with a sparse
+ * scatter underneath:
  *
- *  - the **cap**: a dense band hugging the line, so its shape reads clearly;
- *  - the **falloff**: below the cap, particles thin out and shrink until they fade away.
+ *  - the **line**: one small bead per column, so the shape reads clearly, with the odd bigger
+ *    particle hugging it;
+ *  - the **scatter**: a few particles per column that thin out quickly with depth, getting
+ *    smaller, dimmer and further apart the further they fall.
  *
  * Layouts are deterministic for a given seed, so a chart doesn't shimmer between renders.
  * Plain maths only, no React or Skia, so it can be unit tested.
@@ -21,16 +24,24 @@ export interface Particle {
 }
 
 export interface BandOptions {
-  /** Depth of the dense band under the line, in points. */
-  capWidth: number;
-  /** Depth of the thinning band below the cap, in points. */
-  falloffWidth: number;
-  /** Average distance between neighbouring particles in the cap, in points. */
+  /** Distance between columns along the line, in points. Each column puts a bead on the line. */
   spacing: number;
+  /** How far below the line scattered particles fall on average, in points. */
+  spread: number;
+  /** No particle falls further below the line than this, in points. */
+  maxDepth: number;
+  /** Scattered particles per column, on average. */
+  scatter: number;
   seed?: number;
 }
 
-export const DEFAULT_BAND: BandOptions = { capWidth: 24, falloffWidth: 150, spacing: 3.3, seed: 7 };
+export const DEFAULT_BAND: BandOptions = {
+  spacing: 4.4,
+  spread: 28,
+  maxDepth: 140,
+  scatter: 5,
+  seed: 7,
+};
 
 interface Sample {
   /** Distance under the line. */
@@ -39,41 +50,70 @@ interface Sample {
   alpha: number;
 }
 
-/** One column of particles at a single point along the line, from the edge downwards. */
-function sampleColumn(random: Random, maxDepth: number, band: BandOptions): Sample[] {
-  const samples: Sample[] = [];
-  const { capWidth, falloffWidth, spacing } = band;
-  const limit = Math.min(maxDepth, capWidth + falloffWidth);
-
-  // The edge: a tight row of fuller particles that traces the line itself.
-  const edgeR = random.between(1.1, 1.8);
-  samples.push({ depth: edgeR, r: edgeR, alpha: 1 });
-
-  for (
-    let depth = edgeR * 2 + spacing * 0.5;
-    depth < limit;
-    depth += spacing * random.between(0.7, 1.3)
-  ) {
-    if (depth < capWidth) {
-      // The cap: dense, with the odd bright, bigger particle.
-      if (random.chance(0.035)) {
-        samples.push({ depth, r: random.between(2.2, 3.4), alpha: 1 });
-      } else if (random.chance(0.92)) {
-        samples.push({ depth, r: random.between(0.7, 1.7), alpha: random.between(0.75, 1) });
-      }
-    } else {
-      // The falloff: chance, size and brightness all ease away with depth.
-      const t = (depth - capWidth) / falloffWidth;
-      const ease = (1 - t) * (1 - t);
-      if (random.chance(0.7 * ease + 0.04)) {
-        const big = random.chance(0.02 * ease);
-        samples.push({
-          depth,
-          r: big ? random.between(1.8, 2.8) : random.between(0.45, 0.45 + 1.1 * ease),
-          alpha: 0.25 + 0.65 * ease,
-        });
-      }
+/**
+ * Decides, column by column, where the big particles gather. Every so often a short stretch of
+ * the line becomes a cluster, so big beads turn up in little groups rather than evenly spaced.
+ */
+function clusterer(random: Random): () => boolean {
+  let left = 0;
+  return () => {
+    if (left > 0) {
+      left -= 1;
+      return true;
     }
+    if (random.chance(0.04)) left = random.int(3, 8);
+    return false;
+  };
+}
+
+/**
+ * One column of particles at a single point along the line, from the edge downwards.
+ * `clustered` columns sit in a cluster of big particles.
+ */
+export function sampleColumn(
+  random: Random,
+  maxDepth: number,
+  band: BandOptions,
+  clustered = false,
+): Sample[] {
+  const samples: Sample[] = [];
+  const limit = Math.min(maxDepth, band.maxDepth);
+
+  // The line itself: a string of separate beads of varying size. Columns are spaced so that
+  // neighbouring beads never touch, and the beads under them sit clear of them too.
+  const edgeR = random.chance(0.15) ? random.between(1.6, 1.9) : random.between(1, 1.6);
+  samples.push({ depth: edgeR, r: edgeR, alpha: 1 });
+  let floor = edgeR * 2;
+  for (const chance of [0.6, 0.3]) {
+    if (!random.chance(chance)) break;
+    const r = random.between(0.8, 1.4);
+    const depth = floor + r + random.between(0.9, 3);
+    samples.push({ depth, r, alpha: 1 });
+    floor = depth + r;
+  }
+
+  // Big particles hugging the line: common inside a cluster, rare outside one.
+  if (random.chance(clustered ? 0.5 : 0.025)) {
+    const r = clustered ? random.between(2.6, 5) : random.between(2.2, 3.4);
+    samples.push({ depth: r * 0.7 + random.between(0, 4), r, alpha: 1 });
+  }
+
+  // The scatter. Depth falls off exponentially, so particles are common just under the line and
+  // get further apart as they fall. Deeper particles are also smaller and dimmer.
+  const count = Math.floor(band.scatter + random.next());
+  for (let i = 0; i < count; i++) {
+    const depth = 3 - Math.log(1 - random.next() * 0.999) * band.spread;
+    if (depth >= limit) continue;
+    const ease = 1 - depth / limit;
+    // Now and then a scattered particle is a big one too, more so under a cluster.
+    const big = random.chance(clustered ? 0.18 : 0.04);
+    samples.push({
+      depth,
+      r: big
+        ? random.between(1.8, 1.8 + 1.6 * ease)
+        : random.between(0.5, 0.8 + 1.9 * ease * Math.sqrt(ease)),
+      alpha: 0.35 + 0.65 * ease,
+    });
   }
   return samples;
 }
@@ -93,6 +133,11 @@ function lineYAt(xs: readonly number[], ys: readonly number[], x: number): numbe
   return ys[ys.length - 1] ?? 0;
 }
 
+/** How steep the line is at `x`, as the change in y per point across. */
+function slopeAt(xs: readonly number[], ys: readonly number[], x: number): number {
+  return (lineYAt(xs, ys, x + 1) - lineYAt(xs, ys, x - 1)) / 2;
+}
+
 /**
  * Packs particles under a line through (`xs`, `ys`), down to `height`.
  * Columns are evenly spaced across the line's width, with a little jitter so it looks organic.
@@ -108,11 +153,16 @@ export function particlesUnderLine(
   const start = xs[0] ?? 0;
   const end = xs[xs.length - 1] ?? 0;
   const particles: Particle[] = [];
+  const inCluster = clusterer(random);
 
-  for (let x = start; x <= end; x += band.spacing * 0.62) {
+  // Step along the line by its length, not just across, so steep stretches get as many beads.
+  for (let x = start; x <= end; x += band.spacing / Math.sqrt(1 + slopeAt(xs, ys, x) ** 2)) {
     const top = lineYAt(xs, ys, x);
-    for (const s of sampleColumn(random, height - top, band)) {
-      const px = Math.min(Math.max(x + random.between(-1.2, 1.2), start), end);
+    for (const s of sampleColumn(random, height - top, band, inCluster())) {
+      // Beads on the line stay put so they don't touch their neighbours; scattered particles
+      // drift sideways a little, more the further they fall.
+      const drift = s.depth < 6 ? 0.2 : Math.min(0.8 + s.depth * 0.08, 4);
+      const px = Math.min(Math.max(x + random.between(-drift, drift), start), end);
       particles.push({ x: px, y: top + s.depth, r: s.r, alpha: s.alpha });
     }
   }
@@ -137,14 +187,16 @@ export function particlesInRing(
   band: BandOptions,
 ): Particle[][] {
   const random = createRandom(band.seed ?? 11);
+  const inCluster = clusterer(random);
   return segments.map((segment) => {
     const particles: Particle[] = [];
     if (segment.sweep <= 0) return particles;
     // Space columns evenly along the outer edge.
-    const stepDegrees = ((band.spacing * 0.62) / outerRadius) * (180 / Math.PI);
+    const stepDegrees = (band.spacing / outerRadius) * (180 / Math.PI);
     for (let a = segment.start; a <= segment.start + segment.sweep; a += stepDegrees) {
-      for (const s of sampleColumn(random, outerRadius * 0.62, band)) {
-        const angle = ((a + random.between(-stepDegrees, stepDegrees) * 0.4 - 90) * Math.PI) / 180;
+      for (const s of sampleColumn(random, outerRadius * 0.62, band, inCluster())) {
+        const jitter = s.depth < 6 ? 0 : stepDegrees * Math.min(0.4 + s.depth * 0.05, 1.5);
+        const angle = ((a + random.between(-jitter, jitter) - 90) * Math.PI) / 180;
         const radius = outerRadius - s.depth;
         particles.push({
           x: cx + Math.cos(angle) * radius,

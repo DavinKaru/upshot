@@ -36,17 +36,36 @@ describe('particlesUnderLine', () => {
     }
   });
 
-  it('packs particles densely near the line and sparsely further down', () => {
-    const { capWidth, falloffWidth } = DEFAULT_BAND;
-    const near = particles.filter((p) => p.x > 120 && p.x < 180 && p.y < 60 + capWidth).length;
-    const far = particles.filter(
-      (p) =>
-        p.x > 120 &&
-        p.x < 180 &&
-        p.y > 60 + capWidth + falloffWidth * 0.6 &&
-        p.y < 60 + capWidth + falloffWidth * 0.6 + capWidth,
-    ).length;
-    expect(near).toBeGreaterThan(far * 3);
+  it('traces the line tightly and thins out further down', () => {
+    // On the flat stretch the line sits at y = 60.
+    const flat = particles.filter((p) => p.x > 120 && p.x < 180);
+    const onLine = flat.filter((p) => p.y < 60 + 5).length;
+    const middle = flat.filter((p) => p.y > 60 + 40 && p.y < 60 + 45).length;
+    expect(onLine).toBeGreaterThan(20);
+    expect(onLine).toBeGreaterThan(middle * 4);
+  });
+
+  it('spreads the scatter further apart the deeper it goes', () => {
+    const flat = particles.filter((p) => p.x > 100 && p.x < 200);
+    const band = (from: number) => flat.filter((p) => p.y >= 60 + from && p.y < 60 + from + 20);
+    expect(band(5).length).toBeGreaterThan(band(45).length);
+    expect(band(45).length).toBeGreaterThanOrEqual(band(85).length);
+  });
+
+  it('never drops a particle further than the band allows', () => {
+    for (const p of particles) {
+      const lineY = p.x <= 100 ? 100 - 0.4 * p.x : p.x <= 200 ? 60 : 60 - 0.4 * (p.x - 200);
+      expect(p.y - lineY).toBeLessThan(DEFAULT_BAND.maxDepth + 2);
+    }
+  });
+
+  it('gathers big particles into small clusters along the line', () => {
+    const wide = particlesUnderLine([0, 1000], [60, 60], 300);
+    const big = wide.filter((p) => p.r >= 2.6).map((p) => p.x);
+    expect(big.length).toBeGreaterThan(5);
+    // Most big particles have another big one close by.
+    const grouped = big.filter((x) => big.some((other) => other !== x && Math.abs(other - x) < 25));
+    expect(grouped.length).toBeGreaterThan(big.length / 2);
   });
 
   it('draws nothing without at least two points', () => {
@@ -64,7 +83,7 @@ describe('particlesInRing', () => {
       100,
       100,
       90,
-      { ...DEFAULT_BAND, capWidth: 12, falloffWidth: 30 },
+      { ...DEFAULT_BAND, spread: 8, maxDepth: 30 },
     );
     expect(rings).toHaveLength(2);
     expect(rings[0]?.length).toBeGreaterThan(50);
@@ -72,7 +91,7 @@ describe('particlesInRing', () => {
     for (const p of rings[0] ?? []) {
       expect(Math.hypot(p.x - 100, p.y - 100)).toBeLessThanOrEqual(90.5);
       // The first segment is the right-hand half of the ring.
-      expect(p.x).toBeGreaterThanOrEqual(98);
+      expect(p.x).toBeGreaterThanOrEqual(97);
     }
   });
 });
@@ -121,12 +140,7 @@ describe('pushFromTouch', () => {
 
 describe('ringLayers', () => {
   it('gives every particle an angle that matches where it sits', () => {
-    const layers = ringLayers(100, 100, 90, {
-      capWidth: 10,
-      falloffWidth: 20,
-      spacing: 3,
-      seed: 3,
-    });
+    const layers = ringLayers(100, 100, 90, { ...DEFAULT_BAND, spread: 8, maxDepth: 30, seed: 3 });
     expect(layers).toHaveLength(ALPHA_LEVELS.length);
     const all = layers.flatMap((l) => l.angles.map((a, i) => ({ a, x: l.xs[i]!, y: l.ys[i]! })));
     expect(all.length).toBeGreaterThan(100);

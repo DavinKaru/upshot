@@ -59,6 +59,7 @@ jest.mock('@shopify/react-native-skia', () => {
     Group: Nothing,
     Line: Nothing,
     Circle: Nothing,
+    DashPathEffect: Nothing,
     LinearGradient: Nothing,
     vec: (x = 0, y = 0) => ({ x, y }),
     rect: (x, y, width, height) => ({ x, y, width, height }),
