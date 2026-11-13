@@ -18,7 +18,7 @@ import { formatMonth, previousMonth } from '@/insights/dates';
 import type { CategorySpend, MonthlySpending } from '@/insights/spendingByCategory';
 import { tap } from '@/lib/haptics';
 import { formatMoney, percentChange } from '@/lib/money';
-import { shades } from '@/theme/color';
+import { shades, tinted } from '@/theme/color';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
 import { CategoryDonut, type DonutItem } from './CategoryDonut';
@@ -46,12 +46,15 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
   );
   const childRows = useMemo(() => {
     if (!parent) return [];
-    const tints = shades(
-      colors.category[categoryColorKey(parent.id)],
-      parent.children.length,
-      colors.base,
-    );
-    return parent.children.map((child, i) => ({ ...child, color: tints[i] ?? colors.textMuted }));
+    // Only parts with spending show in the ring, so only they need telling apart. Shades are
+    // checked against the lighter, tinted sheet, the harder of the two backgrounds to pass.
+    const hex = colors.category[categoryColorKey(parent.id)];
+    const spent = parent.children.filter((child) => child.total > 0);
+    const tints = shades(hex, spent.length, tinted(colors.sheet, hex));
+    return parent.children.map((child) => {
+      const index = spent.indexOf(child);
+      return { ...child, color: index >= 0 ? (tints[index] ?? hex) : colors.textFaint };
+    });
   }, [parent]);
   const rows: (CategorySpend & { color: string })[] = parent ? childRows : topRows;
 
