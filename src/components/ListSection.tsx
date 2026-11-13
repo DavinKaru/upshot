@@ -5,7 +5,8 @@ import { tap } from '@/lib/haptics';
 import { colors, spacing, type } from '@/theme/tokens';
 
 interface ListSectionProps {
-  title: string;
+  /** Usually a string; can be nested `Text`, for a breadcrumb. */
+  title: ReactNode;
   actionLabel?: string;
   onAction?: () => void;
   children: ReactNode;

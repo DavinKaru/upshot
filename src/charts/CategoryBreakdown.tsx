@@ -1,7 +1,13 @@
 import Feather from '@expo/vector-icons/Feather';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, {
+  LayoutAnimationConfig,
+  SlideInLeft,
+  SlideInRight,
+  SlideOutLeft,
+  SlideOutRight,
+} from 'react-native-reanimated';
 
 import { categoryColorKey } from '@/components/CategoryBadge';
 import { ListRow } from '@/components/ListRow';
@@ -69,15 +75,17 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
     }
   };
 
+  const goBack = () => {
+    tap();
+    setParentId(null);
+  };
+
   return (
     <>
       <View style={styles.titleRow}>
         {parent ? (
           <Pressable
-            onPress={() => {
-              tap();
-              setParentId(null);
-            }}
+            onPress={goBack}
             hitSlop={12}
             style={styles.back}
             accessibilityRole="button"
@@ -109,28 +117,50 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
       </View>
 
       <Sheet>
-        <ListSection title={parent ? parent.name : 'By category'}>
-          <Animated.View key={parentId ?? 'all'} entering={FadeIn.duration(motion.normal)}>
-            {rows.map((row, i) => (
-              <ListRow
-                key={row.id}
-                title={row.name}
-                leading={<View style={[styles.dot, { backgroundColor: row.color }]} />}
-                trailing={<Money cents={row.total} />}
-                trailingCaption={
-                  <ChangeLabel
-                    current={row.total}
-                    previous={row.lastMonth}
-                    monthLabel={lastMonthName}
-                  />
-                }
-                onPress={parent ? undefined : () => drillInto(row.id)}
-                showChevron={!parent}
-                separator={i < rows.length - 1}
-                accessibilityHint={parent ? undefined : 'Shows sub-categories'}
-              />
-            ))}
-          </Animated.View>
+        <ListSection
+          title={
+            parent ? (
+              <>
+                <Text style={styles.crumb} onPress={goBack} accessibilityRole="link">
+                  Categories
+                </Text>
+                {'  ›  '}
+                {parent.name}
+              </>
+            ) : (
+              'Categories'
+            )
+          }
+        >
+          {/* Opening a category pushes its list in from the right; going back slides it out the
+              same way. The first render doesn't animate. */}
+          <LayoutAnimationConfig skipEntering>
+            <Animated.View
+              key={parentId ?? 'all'}
+              entering={(parent ? SlideInRight : SlideInLeft).duration(motion.normal)}
+              exiting={(parent ? SlideOutRight : SlideOutLeft).duration(motion.normal)}
+            >
+              {rows.map((row, i) => (
+                <ListRow
+                  key={row.id}
+                  title={row.name}
+                  leading={<View style={[styles.dot, { backgroundColor: row.color }]} />}
+                  trailing={<Money cents={row.total} />}
+                  trailingCaption={
+                    <ChangeLabel
+                      current={row.total}
+                      previous={row.lastMonth}
+                      monthLabel={lastMonthName}
+                    />
+                  }
+                  onPress={parent ? undefined : () => drillInto(row.id)}
+                  showChevron={!parent}
+                  separator={i < rows.length - 1}
+                  accessibilityHint={parent ? undefined : 'Shows sub-categories'}
+                />
+              ))}
+            </Animated.View>
+          </LayoutAnimationConfig>
         </ListSection>
         {footer}
       </Sheet>
@@ -186,6 +216,9 @@ const styles = StyleSheet.create({
     ...type.caption,
     color: colors.textMuted,
     marginBottom: spacing.xxs,
+  },
+  crumb: {
+    color: colors.accent,
   },
   change: {
     ...type.caption,

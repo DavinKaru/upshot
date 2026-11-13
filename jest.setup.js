@@ -28,6 +28,11 @@ jest.mock('react-native-reanimated', () => {
     Easing: { out: identity, in: identity, inOut: identity, cubic: identity, quad: identity },
     FadeIn: transition,
     FadeOut: transition,
+    SlideInLeft: transition,
+    SlideInRight: transition,
+    SlideOutLeft: transition,
+    SlideOutRight: transition,
+    LayoutAnimationConfig: ({ children }) => children,
   };
 });
 
