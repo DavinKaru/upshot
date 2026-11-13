@@ -34,15 +34,7 @@ import { formatMoneyRounded } from '@/lib/money';
 import { useTilt } from '@/lib/useTilt';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
-import {
-  barLayers,
-  drained,
-  drainLayers,
-  sloshX,
-  sloshY,
-  type BarLayer,
-  type DrainLayer,
-} from './drain';
+import { barLayers, sloshX, sloshY, sunkRadius, type BarLayer } from './drain';
 import { barAt, buildBarChart, type BarSlot } from './geometry';
 import { ALPHA_LEVELS, DEFAULT_BAND, type BandOptions } from './particles';
 
@@ -64,8 +56,10 @@ const BOTTOM = 6;
 const LABEL_WIDTH = 40;
 /** How far the months you're not looking at fade back. */
 const DIMMED = 0.28;
-/** How long a month takes to drain down to what was kept. */
+/** How long a month's column takes to sink to what was kept. */
 const DRAIN_MS = 1300;
+/** A month where more went out than came in shows its grey bar once its column is this far gone. */
+const NEGATIVE_FROM = 0.7;
 /** Months drain one after another on first showing, this far apart. */
 const DRAIN_STAGGER = 110;
 
@@ -80,12 +74,12 @@ const barBand = (seed: number): BandOptions => ({
 
 interface MonthBar {
   slot: BarSlot;
-  /** What was kept, from zero to the month's rate. */
-  kept: BarLayer[];
-  /** What was spent, from the rate (or zero) up to 100%, which drains away. */
-  spent: DrainLayer[];
-  /** More went out than came in, so the kept bar sits below zero. */
-  negative: boolean;
+  /** A full column of everything that came in, from zero up to 100%, which sinks as it drains. */
+  column: BarLayer[];
+  /** How far the column sinks: from 100% down to what was kept, or all the way to zero. */
+  drop: number;
+  /** The grey bar below zero, when more went out than came in. Empty otherwise. */
+  overspent: BarLayer[];
 }
 
 /** "29%", or "-9%" when more went out than came in. */
@@ -106,8 +100,8 @@ function describeMonth(month: MonthFlow): string {
 /**
  * How much of what came in you kept, month by month, as particle bars against your average.
  *
- * Each month starts as a full column of everything that came in, then what was spent floats
- * away, leaving what was kept. The headline is the average; tap a month to read it (and watch
+ * Each month starts as a full column of everything that came in, then sinks as one bar until
+ * it rests at what was kept. The headline is the average; tap a month to read it (and watch
  * it drain again), drag across to compare, and tap it again to go back to the average. Tilt the
  * phone and the particles slosh.
  */
@@ -156,20 +150,12 @@ export function SavingsRateChart({
         const { zeroY } = geometry;
         const negative = (month?.kept ?? 0) < 0;
         const cameIn = (month?.moneyIn ?? 0) > 0;
+        const topY = geometry.y(1);
         return {
           slot,
-          kept: barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(7 + i)),
-          spent: cameIn
-            ? drainLayers(
-                slot.x0,
-                slot.x1,
-                geometry.y(1),
-                negative ? zeroY : slot.y,
-                zeroY,
-                barBand(101 + i),
-              )
-            : [],
-          negative,
+          column: cameIn ? barLayers(slot.x0, slot.x1, topY, zeroY, barBand(101 + i)) : [],
+          drop: (negative ? zeroY : slot.y) - topY,
+          overspent: negative ? barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(7 + i)) : [],
         };
       }),
     [geometry, months],
@@ -375,13 +361,13 @@ interface BarProps {
 }
 
 /**
- * One month: a full column that drains down to what was kept, faded back while another month
- * is chosen. A month where more went out than came in drains away completely, and its grey bar
+ * One month: a full column that sinks to what was kept, faded back while another month is
+ * chosen. A month where more went out than came in sinks away completely, and its grey bar
  * below zero appears as the last of it goes.
  */
 function Bar({ index, bar, zeroY, active, tilt, ready, trigger, delay, reduceMotion }: BarProps) {
   const drain = useSharedValue(reduceMotion ? 1 : 0);
-  const { kept, spent, negative, slot } = bar;
+  const { column, drop, overspent, slot } = bar;
 
   useEffect(() => {
     if (reduceMotion) {
@@ -390,47 +376,52 @@ function Bar({ index, bar, zeroY, active, tilt, ready, trigger, delay, reduceMot
     }
     drain.value = 0;
     if (!ready) return;
-    drain.value = withDelay(delay, withTiming(1, { duration: DRAIN_MS, easing: Easing.linear }));
+    drain.value = withDelay(
+      delay,
+      withTiming(1, { duration: DRAIN_MS, easing: Easing.inOut(Easing.cubic) }),
+    );
     // `delay` is left out on purpose: it changes with the tap that also changes `trigger`, and
     // a new delay alone shouldn't drain the month again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, trigger, spent, reduceMotion, drain]);
+  }, [ready, trigger, column, reduceMotion, drain]);
 
   const opacity = useDerivedValue(() => (active.value < 0 || active.value === index ? 1 : DIMMED));
-  const keptOpacity = useDerivedValue(() =>
-    negative ? Math.min(Math.max((drain.value - 0.6) / 0.4, 0), 1) : 1,
+  const overspentOpacity = useDerivedValue(() =>
+    Math.min(Math.max((drain.value - NEGATIVE_FROM) / (1 - NEGATIVE_FROM), 0), 1),
   );
 
   return (
     <Group opacity={opacity}>
-      {spent.map((layer, level) =>
+      {column.map((layer, level) =>
         layer.xs.length > 0 ? (
-          <SpentLayer
-            key={`spent-${level}`}
+          <ColumnLayer
+            key={`column-${level}`}
             layer={layer}
             slot={slot}
             zeroY={zeroY}
+            drop={drop}
             drain={drain}
             tilt={tilt}
             opacity={ALPHA_LEVELS[level] ?? 1}
           />
         ) : null,
       )}
-      <Group opacity={keptOpacity}>
-        {kept.map((layer, level) =>
-          layer.xs.length > 0 ? (
-            <KeptLayer
-              key={`kept-${level}`}
-              layer={layer}
-              slot={slot}
-              zeroY={zeroY}
-              tilt={tilt}
-              color={negative ? colors.textMuted : colors.accent}
-              opacity={ALPHA_LEVELS[level] ?? 1}
-            />
-          ) : null,
-        )}
-      </Group>
+      {overspent.length > 0 ? (
+        <Group opacity={overspentOpacity}>
+          {overspent.map((layer, level) =>
+            layer.xs.length > 0 ? (
+              <OverspentLayer
+                key={`overspent-${level}`}
+                layer={layer}
+                slot={slot}
+                zeroY={zeroY}
+                tilt={tilt}
+                opacity={ALPHA_LEVELS[level] ?? 1}
+              />
+            ) : null,
+          )}
+        </Group>
+      ) : null}
     </Group>
   );
 }
@@ -442,15 +433,8 @@ interface LayerProps {
   opacity: number;
 }
 
-/** What was kept at one opacity level, sloshing as the phone tilts. */
-function KeptLayer({
-  layer,
-  slot,
-  zeroY,
-  tilt,
-  color,
-  opacity,
-}: LayerProps & { layer: BarLayer; color: string }) {
+/** The grey bar below zero at one opacity level, sloshing as the phone tilts. */
+function OverspentLayer({ layer, slot, zeroY, tilt, opacity }: LayerProps & { layer: BarLayer }) {
   const { xs, ys, rs, weights, loose } = layer;
   const { x0, x1, cx } = slot;
   const path = usePathValue((builder) => {
@@ -471,37 +455,41 @@ function KeptLayer({
       );
     }
   });
-  return <Path path={path} color={color} opacity={opacity} />;
+  return <Path path={path} color={colors.textMuted} opacity={opacity} />;
 }
 
-/** What was spent at one opacity level, floating away as the month drains. */
-function SpentLayer({
+/**
+ * One opacity level of a month's column, sunk `drop` points by the end of the drain. Particles
+ * shrink into the zero line as they reach it, and the rest slosh as the phone tilts.
+ */
+function ColumnLayer({
   layer,
   slot,
   zeroY,
+  drop,
   drain,
   tilt,
   opacity,
-}: LayerProps & { layer: DrainLayer; drain: SharedValue<number> }) {
-  const { xs, ys, rs, weights, loose, starts, dxs, dys } = layer;
+}: LayerProps & { layer: BarLayer; drop: number; drain: SharedValue<number> }) {
+  const { xs, ys, rs, weights, loose } = layer;
   const { x0, x1, cx } = slot;
   const path = usePathValue((builder) => {
     'worklet';
-    const d = drain.value;
-    if (d >= 1) return;
+    const sunk = drop * drain.value;
     const t = tilt.value;
     for (let i = 0; i < xs.length; i++) {
-      const gone = drained(d, starts[i] ?? 0);
-      if (gone >= 1) continue;
+      const y = (ys[i] ?? 0) + sunk;
+      const r = sunkRadius(y, rs[i] ?? 1, zeroY);
+      if (r <= 0) continue;
       const x = xs[i] ?? 0;
-      const y = ys[i] ?? 0;
-      const sx = t === 0 ? x : sloshX(x, loose[i] ?? 0, t, x0, x1);
-      const sy = t === 0 ? y : sloshY(y, x, weights[i] ?? 0, t, cx, zeroY);
-      // Once a particle lifts off it's free of the bar, so it can float past the edges.
+      if (t === 0) {
+        builder.addCircle(x, y, r);
+        continue;
+      }
       builder.addCircle(
-        sx + (dxs[i] ?? 0) * gone,
-        sy + (dys[i] ?? 0) * gone,
-        (rs[i] ?? 1) * (1 - gone),
+        sloshX(x, loose[i] ?? 0, t, x0, x1),
+        sloshY(y, x, weights[i] ?? 0, t, cx, zeroY),
+        r,
       );
     }
   });
