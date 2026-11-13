@@ -25,6 +25,7 @@ const longDate = new Intl.DateTimeFormat('en-AU', {
   year: 'numeric',
 });
 const monthName = new Intl.DateTimeFormat('en-AU', { month: 'long' });
+const shortMonthName = new Intl.DateTimeFormat('en-AU', { month: 'short' });
 
 /** "12 Nov". */
 export function formatShortDate(date: Date): string {
@@ -39,6 +40,17 @@ export function formatLongDate(date: Date): string {
 /** "November". */
 export function formatMonth(date: Date): string {
   return monthName.format(date);
+}
+
+/** "Nov". */
+export function formatShortMonth(date: Date): string {
+  return shortMonthName.format(date);
+}
+
+/** The first day of a "YYYY-MM" month key, at local midnight. */
+export function parseMonthKey(key: string): Date {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y ?? 1970, (m ?? 1) - 1, 1);
 }
 
 /** Parses a "YYYY-MM-DD" key back into a local date at midnight. */

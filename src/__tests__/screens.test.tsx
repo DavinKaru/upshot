@@ -52,15 +52,13 @@ describe('screens render with demo data', () => {
     expect(await screen.findByText(/^Spending in /)).toBeTruthy();
   });
 
-  it('Savers shows the chart, Saver chips, time ranges and monthly cards', async () => {
+  it('Savers shows the savings rate, this month so far and each Saver', async () => {
     await renderScreen(<SaversScreen />);
-    expect(screen.getByText('All Savers')).toBeTruthy();
-    expect(screen.getByText('This month')).toBeTruthy();
-    expect(screen.getAllByText('Interest earned').length).toBeGreaterThan(1);
-
-    await fireEvent.press(screen.getByText('🗾 Japan Trip'));
-    await fireEvent.press(screen.getByText('1Y'));
-    expect(screen.getByLabelText(/^Balance chart\./)).toBeTruthy();
+    expect(screen.getByText(/^Kept of what came in, /)).toBeTruthy();
+    expect(screen.getByText(/^[A-Z][a-z]+ so far$/)).toBeTruthy();
+    expect(screen.getByText('Came in')).toBeTruthy();
+    expect(screen.getByText('Japan Trip')).toBeTruthy();
+    expect(screen.getByLabelText(/^Savings rate by month\. Average /)).toBeTruthy();
   });
 
   it('Upshot shows the app, the Up connection and the disclaimer', async () => {

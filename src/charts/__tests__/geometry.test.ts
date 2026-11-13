@@ -1,4 +1,6 @@
 import {
+  barAt,
+  buildBarChart,
   buildLineChart,
   buildPaceChart,
   donutSegments,
@@ -202,5 +204,37 @@ describe('buildPaceChart', () => {
 
   it('draws nothing before it has a size', () => {
     expect(buildPaceChart([1], [1], 30, 0, 200, insets).xs).toEqual([]);
+  });
+});
+
+describe('buildBarChart', () => {
+  const insets = { top: 10, bottom: 10, left: 0, right: 0 };
+
+  it('gives each value an equal slot and grows bars from zero', () => {
+    const chart = buildBarChart([0.2, 0.4], 200, 120, insets, null, 0.5);
+    expect(chart.bars.map((b) => b.cx)).toEqual([50, 150]);
+    expect((chart.bars[0]?.x1 ?? 0) - (chart.bars[0]?.x0 ?? 0)).toBeCloseTo(50);
+    expect(chart.zeroY).toBeCloseTo(110);
+    expect(chart.bars[1]?.y).toBeLessThan(chart.bars[0]?.y ?? 0);
+    expect(chart.bars[1]?.y).toBeGreaterThanOrEqual(10);
+  });
+
+  it('makes room below zero for negative values and keeps the reference on the chart', () => {
+    const chart = buildBarChart([-0.1, 0.3, null], 300, 120, insets, 0.5);
+    expect(chart.zeroY).toBeLessThan(110);
+    expect(chart.bars[0]?.y).toBeGreaterThan(chart.zeroY);
+    expect(chart.bars[2]?.y).toBeCloseTo(chart.zeroY);
+    expect(chart.referenceY).toBeGreaterThanOrEqual(10);
+    expect(chart.referenceY).toBeLessThan(chart.bars[1]?.y ?? 0);
+  });
+
+  it('finds the slot under a touch, clamped to the chart', () => {
+    const { bars } = buildBarChart([1, 2, 3], 300, 100, insets);
+    expect(barAt(bars, 10)).toBe(0);
+    expect(barAt(bars, 150)).toBe(1);
+    expect(barAt(bars, 299)).toBe(2);
+    expect(barAt(bars, -40)).toBe(0);
+    expect(barAt(bars, 900)).toBe(2);
+    expect(barAt([], 10)).toBe(-1);
   });
 });

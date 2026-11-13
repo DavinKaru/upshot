@@ -269,3 +269,64 @@ export function buildPaceChart(
     zeroY: y(0),
   };
 }
+
+export interface BarSlot {
+  /** Left and right edges of the bar, and its centre. */
+  x0: number;
+  x1: number;
+  cx: number;
+  /** Screen y of the bar's end, away from zero. Equals `zeroY` for a zero or missing value. */
+  y: number;
+}
+
+export interface BarChartGeometry {
+  bars: BarSlot[];
+  /** Screen y of zero. */
+  zeroY: number;
+  /** Screen y of `reference`, if one was given. */
+  referenceY: number | null;
+}
+
+/**
+ * Lays out one bar per value across `width`, each in an equal slot, with `gap` as a share of the
+ * slot left between bars. Bars grow up from zero for positive values and down for negative ones,
+ * and the scale always includes zero and `reference`, so a reference line stays on the chart.
+ */
+export function buildBarChart(
+  values: readonly (number | null)[],
+  width: number,
+  height: number,
+  insets: ChartInsets,
+  reference: number | null = null,
+  gap = 0.36,
+): BarChartGeometry {
+  if (values.length === 0 || width <= 0 || height <= 0) {
+    return { bars: [], zeroY: height, referenceY: null };
+  }
+  const known = values.filter((v): v is number => v !== null);
+  if (reference !== null) known.push(reference);
+  const max = Math.max(0, ...known);
+  const min = Math.min(0, ...known);
+  const span = max - min || 1;
+  const y = scaleLinear()
+    .domain([min < 0 ? min - span * 0.04 : 0, max + span * 0.04])
+    .range([height - insets.bottom, insets.top]);
+
+  const slot = (width - insets.left - insets.right) / values.length;
+  const barWidth = slot * (1 - gap);
+  const bars = values.map((value, i) => {
+    const cx = insets.left + slot * (i + 0.5);
+    return { x0: cx - barWidth / 2, x1: cx + barWidth / 2, cx, y: y(value ?? 0) };
+  });
+  return { bars, zeroY: y(0), referenceY: reference === null ? null : y(reference) };
+}
+
+/** The index of the slot under `x`, clamped to the chart. `bars` must be sorted. */
+export function barAt(bars: readonly BarSlot[], x: number): number {
+  'worklet';
+  if (bars.length === 0) return -1;
+  const first = bars[0] as BarSlot;
+  const slot = bars.length > 1 ? (bars[1] as BarSlot).cx - first.cx : first.x1 - first.x0;
+  const index = Math.floor((x - (first.cx - slot / 2)) / slot);
+  return Math.min(Math.max(index, 0), bars.length - 1);
+}

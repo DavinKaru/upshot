@@ -2,6 +2,7 @@ import {
   ALPHA_LEVELS,
   bucketByAlpha,
   DEFAULT_BAND,
+  particlesInBar,
   particlesInRing,
   particlesUnderLine,
   pushFromTouch,
@@ -152,5 +153,34 @@ describe('ringLayers', () => {
       expect(100 + Math.cos(rad) * r).toBeCloseTo(x, 3);
       expect(100 + Math.sin(rad) * r).toBeCloseTo(y, 3);
     }
+  });
+});
+
+describe('particlesInBar', () => {
+  it('fills a bar above zero from its top, densest at the top', () => {
+    const particles = particlesInBar(20, 60, 40, 140);
+    expect(particles.length).toBeGreaterThan(20);
+    for (const p of particles) {
+      expect(p.x).toBeGreaterThanOrEqual(20);
+      expect(p.x).toBeLessThanOrEqual(60);
+      expect(p.y).toBeGreaterThanOrEqual(40);
+      expect(p.y).toBeLessThanOrEqual(140);
+    }
+    const top = particles.filter((p) => p.y < 65).length;
+    const bottom = particles.filter((p) => p.y > 115).length;
+    expect(top).toBeGreaterThan(bottom * 2);
+  });
+
+  it('fills a bar below zero from its bottom', () => {
+    const particles = particlesInBar(20, 60, 140, 100);
+    expect(particles.length).toBeGreaterThan(5);
+    for (const p of particles) {
+      expect(p.y).toBeGreaterThanOrEqual(100);
+      expect(p.y).toBeLessThanOrEqual(140);
+    }
+  });
+
+  it('draws nothing for a bar with no length', () => {
+    expect(particlesInBar(20, 60, 100, 100)).toEqual([]);
   });
 });

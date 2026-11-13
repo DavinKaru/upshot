@@ -32,6 +32,8 @@ export interface BandOptions {
   maxDepth: number;
   /** Scattered particles per column, on average. */
   scatter: number;
+  /** The chance, per column, of a cluster of big particles starting there. Defaults to 0.04. */
+  clusterChance?: number;
   seed?: number;
 }
 
@@ -54,14 +56,14 @@ interface Sample {
  * Decides, column by column, where the big particles gather. Every so often a short stretch of
  * the line becomes a cluster, so big beads turn up in little groups rather than evenly spaced.
  */
-function clusterer(random: Random): () => boolean {
+function clusterer(random: Random, chance = 0.04): () => boolean {
   let left = 0;
   return () => {
     if (left > 0) {
       left -= 1;
       return true;
     }
-    if (random.chance(0.04)) left = random.int(3, 8);
+    if (random.chance(chance)) left = random.int(3, 8);
     return false;
   };
 }
@@ -153,7 +155,7 @@ export function particlesUnderLine(
   const start = xs[0] ?? 0;
   const end = xs[xs.length - 1] ?? 0;
   const particles: Particle[] = [];
-  const inCluster = clusterer(random);
+  const inCluster = clusterer(random, band.clusterChance);
 
   // Step along the line by its length, not just across, so steep stretches get as many beads.
   for (let x = start; x <= end; x += band.spacing / Math.sqrt(1 + slopeAt(xs, ys, x) ** 2)) {
@@ -167,6 +169,34 @@ export function particlesUnderLine(
     }
   }
   return particles;
+}
+
+/**
+ * Packs particles into a bar from `x0` to `x1`, beaded along its end at `edgeY` and thinning
+ * towards zero at `zeroY`. Works both ways: a bar above zero hangs down from its top, and one
+ * below zero rises up from its bottom. The scatter is scaled to the bar, so short and tall bars
+ * both read as solid towards their end.
+ */
+export function particlesInBar(
+  x0: number,
+  x1: number,
+  edgeY: number,
+  zeroY: number,
+  band: BandOptions = DEFAULT_BAND,
+): Particle[] {
+  const length = Math.abs(zeroY - edgeY);
+  if (x1 <= x0 || length < 0.5) return [];
+  const scaled: BandOptions = {
+    ...band,
+    spread: Math.max(6, length * 0.6),
+    maxDepth: length,
+  };
+  const down = edgeY <= zeroY;
+  // Beads hugging the end can sit deeper than a very short bar; leave those out so nothing
+  // crosses zero.
+  return particlesUnderLine([x0, x1], [0, 0], length, scaled)
+    .filter((p) => p.y <= length)
+    .map((p) => ({ ...p, y: down ? edgeY + p.y : edgeY - p.y }));
 }
 
 export interface RingSegment {
@@ -187,7 +217,7 @@ export function particlesInRing(
   band: BandOptions,
 ): Particle[][] {
   const random = createRandom(band.seed ?? 11);
-  const inCluster = clusterer(random);
+  const inCluster = clusterer(random, band.clusterChance);
   return segments.map((segment) => {
     const particles: Particle[] = [];
     if (segment.sweep <= 0) return particles;
