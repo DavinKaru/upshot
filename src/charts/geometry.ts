@@ -136,45 +136,13 @@ export function segmentAt(
 }
 
 /**
- * The ring part way through one segment growing to fill it. At `t` = 0 this is `base`; at 1 the
- * `anchor` segment covers the whole ring and the rest have shrunk to nothing. The anchor stays
- * centred where it was, its neighbours are pushed round the ring ahead of it, and the gaps close
- * up as it goes.
+ * One segment part way through filling the ring. Its start stays put and its far (clockwise) end
+ * sweeps on round the ring: at `t` = 0 it's the segment as it is, at 1 it covers all 360°.
  */
-export function expandSegments(base: readonly Segment[], anchor: number, t: number): Segment[] {
+export function wipeSegment(segment: Segment, t: number): Segment {
   'worklet';
-  const focus = base[anchor];
-  if (!focus || focus.sweep <= 0 || t <= 0) return base.map((s) => ({ ...s }));
-  const progress = Math.min(t, 1);
-
-  let used = 0;
-  let visible = 0;
-  for (const s of base) {
-    if (s.sweep > 0) {
-      used += s.sweep;
-      visible += 1;
-    }
-  }
-  const gap = visible > 1 ? ((360 - used) / visible) * (1 - progress) : 0;
-
-  const result: Segment[] = base.map((s) => ({ ...s }));
-  const sweep = focus.sweep + (360 - focus.sweep) * progress;
-  const start = focus.start + focus.sweep / 2 - sweep / 2;
-  result[anchor] = { start, sweep };
-  let cursor = start + sweep;
-  for (let step = 1; step < base.length; step++) {
-    const i = (anchor + step) % base.length;
-    const s = base[i];
-    if (!s) continue;
-    if (s.sweep <= 0) {
-      result[i] = { start: cursor, sweep: 0 };
-      continue;
-    }
-    const shrunk = s.sweep * (1 - progress);
-    result[i] = { start: cursor + gap, sweep: shrunk };
-    cursor += gap + shrunk;
-  }
-  return result;
+  const progress = Math.min(Math.max(t, 0), 1);
+  return { start: segment.start, sweep: segment.sweep + (360 - segment.sweep) * progress };
 }
 
 /** Whether an angle (degrees clockwise from 12 o'clock) falls inside `segment`, wrapping at 360. */
