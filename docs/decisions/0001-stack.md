@@ -35,5 +35,5 @@ Library versions follow whatever `npx expo install` picks for the current SDK.
 
 ## Trade-offs
 
-- Running the app needs Xcode (for iOS) or Android Studio (for Android) locally. CI builds both.
+- Running the app needs Xcode (for iOS) or Android Studio (for Android) locally. CI builds both whenever dependencies or native config change.
 - Expo ships breaking changes in each SDK. We'll upgrade one SDK at a time, using `npx expo-doctor`.

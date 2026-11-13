@@ -1,0 +1,87 @@
+name: Native builds
+
+# Builds the Android and iOS apps from scratch, to catch native breakage: a library that won't
+# link, a config plugin that fails, a bad app.json. These take far longer than the JavaScript
+# checks, and JavaScript-only changes can't break them, so they only run when something that feeds
+# the native projects changes. Run them by hand from the Actions tab any time.
+
+on:
+  push:
+    branches: [main]
+    paths: &native
+      - 'package.json'
+      - 'package-lock.json'
+      - 'app.json'
+      - 'app.config.*'
+      - 'assets/images/**'
+      - 'plugins/**'
+      - 'patches/**'
+      - '.github/workflows/native.yml'
+  pull_request:
+    paths: *native
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  EXPO_NO_TELEMETRY: 1
+
+concurrency:
+  group: native-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+      - uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
+      - run: npm ci --no-audit --no-fund
+      - run: npx expo prebuild --platform android --no-install
+      # One CPU architecture is enough to prove it builds, and skips three quarters of the
+      # native C++ compiling.
+      - run: ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=x86_64
+        working-directory: android
+
+  ios:
+    name: iOS build
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      # Generates the native project and runs `pod install`.
+      - run: npx expo prebuild --platform ios
+      # Only the runner's own architecture (Apple silicon), and no code index for Xcode's editor.
+      - name: Build for the simulator (unsigned)
+        run: >
+          xcodebuild
+          -workspace ios/Upshot.xcworkspace
+          -scheme Upshot
+          -configuration Debug
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          ARCHS=arm64
+          ONLY_ACTIVE_ARCH=YES
+          COMPILER_INDEX_STORE_ENABLE=NO
+          CODE_SIGNING_ALLOWED=NO
+          build
