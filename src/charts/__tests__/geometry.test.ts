@@ -1,6 +1,9 @@
 import {
   buildLineChart,
   donutSegments,
+  gapsAt,
+  planGapMoves,
+  ringGaps,
   inSegment,
   nearestIndex,
   segmentAt,
@@ -109,5 +112,72 @@ describe('inSegment', () => {
     expect(inSegment(340, 350, 20)).toBe(false);
     expect(inSegment(123, 40, 360)).toBe(true);
     expect(inSegment(10, 0, 0)).toBe(false);
+  });
+});
+
+describe('ringGaps', () => {
+  it("finds the split before each visible segment, starting at 12 o'clock", () => {
+    const { centres, width } = ringGaps(donutSegments([50, 0, 50], 6));
+    expect(width).toBeCloseTo(6);
+    expect(centres).toHaveLength(2);
+    expect(centres[0]).toBeCloseTo(0);
+    expect(centres[1]).toBeCloseTo(180);
+  });
+
+  it('has no splits for a ring of one segment', () => {
+    expect(ringGaps(donutSegments([10], 6))).toEqual({ centres: [], width: 0 });
+  });
+});
+
+describe('planGapMoves', () => {
+  it('moves every split clockwise, to the nearest new split at or after it', () => {
+    const moves = planGapMoves(
+      { centres: [0, 100, 200], width: 5 },
+      { centres: [0, 150, 250], width: 5 },
+    );
+    expect(moves).toEqual([
+      { from: 0, to: 0, fromWidth: 5, toWidth: 5 },
+      { from: 100, to: 150, fromWidth: 5, toWidth: 5 },
+      { from: 200, to: 250, fromWidth: 5, toWidth: 5 },
+    ]);
+    for (const m of moves) expect(m.to).toBeGreaterThanOrEqual(m.from);
+  });
+
+  it('merges splits that head for the same place', () => {
+    const moves = planGapMoves(
+      { centres: [0, 100, 120], width: 5 },
+      { centres: [0, 130], width: 5 },
+    );
+    expect(moves.map((m) => m.to)).toEqual([0, 130, 130]);
+  });
+
+  it("starts extra splits at 12 o'clock and opens them up on the way", () => {
+    const moves = planGapMoves(
+      { centres: [0, 300], width: 5 },
+      { centres: [0, 90, 310], width: 5 },
+    );
+    expect(moves).toContainEqual({ from: 0, to: 90, fromWidth: 0, toWidth: 5 });
+  });
+
+  it("carries splits past the last new one round to 12 o'clock", () => {
+    const moves = planGapMoves({ centres: [0, 300], width: 5 }, { centres: [0, 100], width: 5 });
+    expect(moves).toContainEqual({ from: 300, to: 360, fromWidth: 5, toWidth: 5 });
+    // With no split at 12 to join, it closes up as it arrives.
+    const alone = planGapMoves({ centres: [0, 300], width: 5 }, { centres: [], width: 0 });
+    expect(alone).toContainEqual({ from: 300, to: 360, fromWidth: 5, toWidth: 0 });
+  });
+});
+
+describe('gapsAt', () => {
+  it('places each split part way along its move', () => {
+    const moves = [
+      { from: 100, to: 200, fromWidth: 4, toWidth: 4 },
+      { from: 0, to: 90, fromWidth: 0, toWidth: 6 },
+    ];
+    expect(gapsAt(moves, 0)).toEqual([{ start: 98, sweep: 4 }]);
+    expect(gapsAt(moves, 0.5)).toEqual([
+      { start: 148, sweep: 4 },
+      { start: 43.5, sweep: 3 },
+    ]);
   });
 });

@@ -153,3 +153,67 @@ export function inSegment(angle: number, start: number, sweep: number): boolean 
   const offset = (((angle - start) % 360) + 360) % 360;
   return offset < sweep;
 }
+
+/** A split between two segments moving round the ring, in degrees clockwise from 12 o'clock. */
+export interface GapMove {
+  from: number;
+  to: number;
+  fromWidth: number;
+  toWidth: number;
+}
+
+/** The splits between a ring's visible segments: their centres, clockwise from 12, and width. */
+export function ringGaps(segments: readonly Segment[]): { centres: number[]; width: number } {
+  const visible = segments.filter((s) => s.sweep > 0);
+  if (visible.length < 2) return { centres: [], width: 0 };
+  const width = (360 - visible.reduce((sum, s) => sum + s.sweep, 0)) / visible.length;
+  const centres = visible
+    .map((s) => (((s.start - width / 2) % 360) + 360) % 360)
+    .map((c) => (c > 359.99 ? 0 : c))
+    .sort((a, b) => a - b);
+  return { centres, width };
+}
+
+/**
+ * How one ring's splits move to become another's. Every split moves clockwise to the nearest new
+ * split at or after it, so several can arrive together and merge. New splits nobody reaches start
+ * at 12 o'clock and open up as they travel. A split with nowhere to go closes as it reaches 12.
+ */
+export function planGapMoves(
+  from: { centres: readonly number[]; width: number },
+  to: { centres: readonly number[]; width: number },
+): GapMove[] {
+  const reached = new Set<number>();
+  const moves: GapMove[] = from.centres.map((centre) => {
+    const next = to.centres.findIndex((c) => c >= centre - 0.01);
+    if (next >= 0) {
+      reached.add(next);
+      return { from: centre, to: to.centres[next] ?? 0, fromWidth: from.width, toWidth: to.width };
+    }
+    // Past the last new split: carry on round to 12 o'clock, where the ring may already split.
+    const top = to.centres.findIndex((c) => c < 0.01);
+    if (top >= 0) reached.add(top);
+    return {
+      from: centre,
+      to: 360,
+      fromWidth: from.width,
+      toWidth: top >= 0 ? to.width : 0,
+    };
+  });
+  to.centres.forEach((centre, i) => {
+    if (!reached.has(i)) moves.push({ from: 0, to: centre, fromWidth: 0, toWidth: to.width });
+  });
+  return moves;
+}
+
+/** Where each split is at `t` (0–1) of its move, as a thin segment centred on it. */
+export function gapsAt(moves: readonly GapMove[], t: number): Segment[] {
+  'worklet';
+  const result: Segment[] = [];
+  for (const m of moves) {
+    const centre = m.from + (m.to - m.from) * t;
+    const width = m.fromWidth + (m.toWidth - m.fromWidth) * t;
+    if (width > 0) result.push({ start: centre - width / 2, sweep: width });
+  }
+  return result;
+}

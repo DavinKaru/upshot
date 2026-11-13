@@ -15,7 +15,16 @@ import { scheduleOnRN } from 'react-native-worklets';
 
 import { motion } from '@/theme/tokens';
 
-import { donutSegments, inSegment, segmentAt, wipeSegment, type Segment } from './geometry';
+import {
+  donutSegments,
+  gapsAt,
+  inSegment,
+  planGapMoves,
+  ringGaps,
+  segmentAt,
+  wipeSegment,
+  type Segment,
+} from './geometry';
 import {
   ALPHA_LEVELS,
   DEFAULT_BAND,
@@ -57,8 +66,9 @@ const SWAP = { duration: 220, easing: Easing.out(Easing.quad) };
 /**
  * A ring of particles split by category, dense at the outer edge and thinning towards the
  * middle. Tapping a segment calls `onSelect`. When `focusedId` is set, that segment's colour
- * sweeps clockwise round the ring from the segment's far end, then splits into `focusItems`;
- * clearing it plays that backwards.
+ * sweeps clockwise round the ring from the segment's far end while the splits slide round to
+ * where `focusItems` will divide it, then the parts' shades fade in. Clearing it plays that
+ * backwards.
  */
 export function CategoryDonut({
   items,
@@ -115,12 +125,30 @@ export function CategoryDonut({
     }
   }, [focused, expand, detail, reduceMotion]);
 
-  // The focused segment's colour, sweeping clockwise from its far end. Nothing else moves: it
-  // paints over the other segments where they are, and uncovers them again on the way back.
-  const anchorSegment = segments[anchor];
+  // Colours fill the ring edge to edge; the splits between them are cut out separately, so they
+  // can move on their own.
+  const colours = useMemo(() => {
+    const pad = ringGaps(segments).width / 2;
+    return segments.map((s) =>
+      s.sweep > 0 ? { start: s.start - pad, sweep: s.sweep + pad * 2 } : s,
+    );
+  }, [segments]);
+
+  // The focused segment's colour, sweeping clockwise from its far end. It paints over the other
+  // segments where they are, and uncovers them again on the way back.
+  const anchorColour = colours[anchor];
   const wipe = useDerivedValue(() =>
-    anchorSegment ? wipeSegment(anchorSegment, expand.value) : { start: 0, sweep: 0 },
+    anchorColour ? wipeSegment(anchorColour, expand.value) : { start: 0, sweep: 0 },
   );
+
+  // Meanwhile the splits slide clockwise to where the parts' splits will be, merging or starting
+  // fresh from 12 o'clock when the counts differ. By the time the parts fade in, the splits are
+  // already in place.
+  const moves = useMemo(
+    () => planGapMoves(ringGaps(segments), ringGaps(partSegments)),
+    [segments, partSegments],
+  );
+  const gaps = useDerivedValue(() => gapsAt(moves, expand.value));
   const topOpacity = useDerivedValue(() => 1 - detail.value);
 
   // Fade in while turning gently into place, when the chart first appears or its data changes.
@@ -180,8 +208,9 @@ export function CategoryDonut({
                   <WipedSegment
                     key={`${item.id}-${level}`}
                     layer={layer}
-                    segment={segments[i]}
+                    segment={colours[i]}
                     wipe={wipe}
+                    gaps={gaps}
                     isWiping={i === anchor}
                     color={item.color}
                     opacity={ALPHA_LEVELS[level] ?? 1}
@@ -214,9 +243,12 @@ export function CategoryDonut({
 
 interface WipedSegmentProps {
   layer: RingLayer;
+  /** Where this segment's colour sits, splits included. */
   segment: Segment | undefined;
   /** The focused segment's colour as it sweeps round the ring. */
   wipe: SharedValue<Segment>;
+  /** The splits cut out of the ring, wherever they are right now. */
+  gaps: SharedValue<Segment[]>;
   /** Whether this is the focused segment, drawn across the whole wipe. */
   isWiping: boolean;
   color: string;
@@ -224,23 +256,30 @@ interface WipedSegmentProps {
 }
 
 /**
- * One segment at one opacity level, rebuilt on the UI thread while the focused segment's colour
- * sweeps round. The focused segment draws everywhere the wipe has reached; every other segment
- * draws where it always is, except where the wipe has painted over it.
+ * One segment at one opacity level, rebuilt on the UI thread while the ring changes. The focused
+ * segment draws everywhere the wipe has reached; every other segment draws where it always is,
+ * except where the wipe has painted over it. Nothing draws inside a split.
  */
-function WipedSegment({ layer, segment, wipe, isWiping, color, opacity }: WipedSegmentProps) {
+function WipedSegment({ layer, segment, wipe, gaps, isWiping, color, opacity }: WipedSegmentProps) {
   const { xs, ys, rs, angles } = layer;
   const start = segment?.start ?? 0;
   const sweep = segment?.sweep ?? 0;
   const path = usePathValue((builder) => {
     'worklet';
     const w = wipe.value;
+    const cuts = gaps.value;
     for (let i = 0; i < angles.length; i++) {
       const angle = angles[i] ?? 0;
       const covered = inSegment(angle, w.start, w.sweep);
-      if (isWiping ? covered : inSegment(angle, start, sweep) && !covered) {
-        builder.addCircle(xs[i] ?? 0, ys[i] ?? 0, rs[i] ?? 1);
+      if (isWiping ? !covered : !inSegment(angle, start, sweep) || covered) continue;
+      let inGap = false;
+      for (const cut of cuts) {
+        if (inSegment(angle, cut.start, cut.sweep)) {
+          inGap = true;
+          break;
+        }
       }
+      if (!inGap) builder.addCircle(xs[i] ?? 0, ys[i] ?? 0, rs[i] ?? 1);
     }
   });
   return <Path path={path} color={color} opacity={opacity} />;
