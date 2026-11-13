@@ -29,13 +29,20 @@ interface CategoryBreakdownProps {
   month: Date;
   /** Shown at the bottom of the sheet, under the list. */
   footer?: ReactNode;
+  /** Called with a category's colour when it's opened, and `null` when it's closed. */
+  onCategoryChange?: (color: string | null) => void;
 }
 
 /**
  * This month's spending by category. Tap a category, on the ring or in the list, to see its
  * sub-categories; each row compares with last month.
  */
-export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdownProps) {
+export function CategoryBreakdown({
+  spending,
+  month,
+  footer,
+  onCategoryChange,
+}: CategoryBreakdownProps) {
   const [parentId, setParentId] = useState<string | null>(null);
   const parent = spending.parents.find((p) => p.id === parentId) ?? null;
   const lastMonthName = formatMonth(previousMonth(month)).slice(0, 3);
@@ -75,12 +82,14 @@ export function CategoryBreakdown({ spending, month, footer }: CategoryBreakdown
     if (!parent && spending.parents.some((p) => p.id === id)) {
       tap();
       setParentId(id);
+      onCategoryChange?.(colors.category[categoryColorKey(id)]);
     }
   };
 
   const goBack = () => {
     tap();
     setParentId(null);
+    onCategoryChange?.(null);
   };
 
   return (

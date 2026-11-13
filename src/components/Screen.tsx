@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
-import { ScrollView, StyleSheet } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { colors, spacing } from '@/theme/tokens';
+
+import { BackgroundTint } from './BackgroundTint';
 
 interface ScreenProps {
   children: ReactNode;
@@ -15,21 +17,27 @@ interface ScreenProps {
  */
 export function Screen({ children, scrollEnabled = true }: ScreenProps) {
   return (
-    <ScrollView
-      style={styles.scroll}
-      contentContainerStyle={styles.content}
-      scrollEnabled={scrollEnabled}
-      showsVerticalScrollIndicator={false}
-    >
-      {children}
-    </ScrollView>
+    <View style={styles.page}>
+      <BackgroundTint />
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        scrollEnabled={scrollEnabled}
+        showsVerticalScrollIndicator={false}
+      >
+        {children}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  page: {
     flex: 1,
     backgroundColor: colors.base,
+  },
+  scroll: {
+    flex: 1,
   },
   content: {
     // Lets a `Sheet` at the end fill the rest of the screen.

@@ -3,6 +3,8 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, radii, spacing } from '@/theme/tokens';
 
+import { BackgroundTint } from './BackgroundTint';
+
 interface SheetProps {
   children: ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -13,7 +15,12 @@ interface SheetProps {
  * edge to edge and fills the rest of the screen, so lists inside it are full width.
  */
 export function Sheet({ children, style }: SheetProps) {
-  return <View style={[styles.sheet, style]}>{children}</View>;
+  return (
+    <View style={[styles.sheet, style]}>
+      <BackgroundTint />
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

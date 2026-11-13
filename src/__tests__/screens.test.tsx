@@ -12,6 +12,7 @@ import { DemoDataProvider } from '@/data/DemoDataProvider';
 jest.mock('expo-router', () => ({
   router: { navigate: jest.fn() },
   useNavigation: () => ({ setOptions: jest.fn() }),
+  useIsFocused: () => true,
 }));
 
 const metrics = {

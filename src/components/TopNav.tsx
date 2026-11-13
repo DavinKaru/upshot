@@ -2,6 +2,7 @@ import type { MaterialTopTabBarProps } from 'expo-router/js-top-tabs';
 import { useState } from 'react';
 import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 
+import { BackgroundTint } from '@/components/BackgroundTint';
 import { tick } from '@/lib/haptics';
 import { colors, spacing, type } from '@/theme/tokens';
 
@@ -59,6 +60,7 @@ export function TopNav({
 
   return (
     <View style={[styles.bar, { paddingTop: insets.top + spacing.sm }]} accessibilityRole="tablist">
+      <BackgroundTint />
       <Animated.View
         style={[styles.row, { opacity: measured ? 1 : 0, transform: [{ translateX }] }]}
       >

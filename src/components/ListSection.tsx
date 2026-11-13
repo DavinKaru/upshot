@@ -4,6 +4,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { tap } from '@/lib/haptics';
 import { colors, spacing, type } from '@/theme/tokens';
 
+import { BackgroundTint } from './BackgroundTint';
+
 interface ListSectionProps {
   /** Usually a string; can be nested `Text`, for a breadcrumb. */
   title: ReactNode;
@@ -17,6 +19,7 @@ export function ListSection({ title, actionLabel, onAction, children }: ListSect
   return (
     <View>
       <View style={styles.band}>
+        <BackgroundTint />
         <Text style={styles.title} accessibilityRole="header">
           {title}
         </Text>
