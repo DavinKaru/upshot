@@ -31,9 +31,10 @@ async function renderScreen(ui: ReactElement) {
 }
 
 describe('screens render with demo data', () => {
-  it('Home shows the balance, Savers and recent activity', async () => {
+  it('Home shows the spending pace, Savers and recent activity', async () => {
     await renderScreen(<HomeScreen />);
-    expect(screen.getByText(/^Good (morning|afternoon|evening)$/)).toBeTruthy();
+    expect(screen.getByText(/^Good (morning|afternoon|evening) · Spent in /)).toBeTruthy();
+    expect(screen.getByText(/than by this time in /)).toBeTruthy();
     expect(screen.getByText(/Demo mode/)).toBeTruthy();
     expect(screen.getByText('Rainy Day')).toBeTruthy();
     expect(screen.getByText('Recent activity')).toBeTruthy();

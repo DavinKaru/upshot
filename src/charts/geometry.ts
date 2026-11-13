@@ -217,3 +217,55 @@ export function gapsAt(moves: readonly GapMove[], t: number): Segment[] {
   }
   return result;
 }
+
+export interface PaceChartGeometry {
+  /** Screen x and y of this month's running total, one per day so far. */
+  xs: number[];
+  ys: number[];
+  /** Screen x and y of last month's running total, one per day. */
+  refXs: number[];
+  refYs: number[];
+  /** SVG path for last month's line. */
+  reference: string;
+  /** Screen y of $0. */
+  zeroY: number;
+}
+
+/**
+ * Lays out this month's running spend against last month's, day by day, on one shared scale.
+ * Days line up by date, so the 12th sits above the 12th, and this month stops at today.
+ */
+export function buildPaceChart(
+  thisMonth: readonly number[],
+  lastMonth: readonly number[],
+  daysInMonth: number,
+  width: number,
+  height: number,
+  insets: ChartInsets,
+): PaceChartGeometry {
+  if (width <= 0 || height <= 0) {
+    return { xs: [], ys: [], refXs: [], refYs: [], reference: '', zeroY: height };
+  }
+  const days = Math.max(daysInMonth, lastMonth.length, 2);
+  const x = scaleLinear()
+    .domain([1, days])
+    .range([insets.left, width - insets.right]);
+  const max = Math.max(1, ...thisMonth, ...lastMonth);
+  const y = scaleLinear()
+    .domain([0, max * 1.06])
+    .range([height - insets.bottom, insets.top]);
+
+  const xs = thisMonth.map((_, i) => x(i + 1));
+  const ys = thisMonth.map((v) => y(v));
+  const refXs = lastMonth.map((_, i) => x(i + 1));
+  const refYs = lastMonth.map((v) => y(v));
+  const points = refXs.map((rx, i) => [rx, refYs[i] ?? 0] as [number, number]);
+  return {
+    xs,
+    ys,
+    refXs,
+    refYs,
+    reference: line().curve(curveMonotoneX)(points) ?? '',
+    zeroY: y(0),
+  };
+}

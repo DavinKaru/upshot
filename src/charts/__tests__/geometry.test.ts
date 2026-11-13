@@ -1,5 +1,6 @@
 import {
   buildLineChart,
+  buildPaceChart,
   donutSegments,
   gapsAt,
   planGapMoves,
@@ -179,5 +180,27 @@ describe('gapsAt', () => {
       { start: 148, sweep: 4 },
       { start: 43.5, sweep: 3 },
     ]);
+  });
+});
+
+describe('buildPaceChart', () => {
+  const insets = { top: 10, bottom: 20, left: 0, right: 0 };
+  const chart = buildPaceChart([100, 300, 300], [0, 200, 400, 600], 30, 290, 200, insets);
+
+  it('lines days up by date on a shared x scale, stopping this month at today', () => {
+    expect(chart.xs).toEqual([0, 10, 20]);
+    expect(chart.refXs).toEqual([0, 10, 20, 30]);
+  });
+
+  it('shares one y scale from $0 at the bottom', () => {
+    expect(chart.zeroY).toBe(180);
+    // Both months use the same scale: $300 sits half again as high as $200.
+    expect(chart.ys[1]).toBeCloseTo(chart.refYs[1]! - (chart.zeroY - chart.refYs[1]!) / 2);
+    expect(chart.refYs[3]).toBeGreaterThanOrEqual(insets.top);
+    expect(chart.reference.startsWith('M')).toBe(true);
+  });
+
+  it('draws nothing before it has a size', () => {
+    expect(buildPaceChart([1], [1], 30, 0, 200, insets).xs).toEqual([]);
   });
 });

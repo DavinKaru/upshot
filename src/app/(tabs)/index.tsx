@@ -1,9 +1,10 @@
 import Feather from '@expo/vector-icons/Feather';
 import { router } from 'expo-router';
-import { useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import type { TransactionResource } from '@/api/up/types';
+import { PaceChart } from '@/charts/PaceChart';
 import { CategoryBadge } from '@/components/CategoryBadge';
 import { DemoBanner } from '@/components/DemoBanner';
 import { EmojiBadge } from '@/components/EmojiBadge';
@@ -13,9 +14,9 @@ import { Money } from '@/components/Money';
 import { Screen } from '@/components/Screen';
 import { Sheet } from '@/components/Sheet';
 import { useAccounts, useBankData } from '@/data/DemoDataProvider';
-import { formatMonth, formatShortDate, previousMonth } from '@/insights/dates';
+import { formatMonth, formatShortDate } from '@/insights/dates';
 import { spendingByCategory } from '@/insights/spendingByCategory';
-import { formatMoney } from '@/lib/money';
+import { spendingPace } from '@/insights/spendingPace';
 import { splitLeadingEmoji } from '@/lib/text';
 import { colors, spacing, type } from '@/theme/tokens';
 
@@ -38,6 +39,11 @@ export default function HomeScreen() {
     () => spendingByCategory(transactions, categories, generatedAt),
     [transactions, categories, generatedAt],
   );
+  const pace = useMemo(() => spendingPace(transactions, generatedAt), [transactions, generatedAt]);
+  const biggest = month.parents[0];
+  // Hold the page still while a finger scrubs the chart.
+  const [scrubbing, setScrubbing] = useState(false);
+  const onScrubbingChange = useCallback((value: boolean) => setScrubbing(value), []);
   const recent = useMemo(
     () =>
       transactions.filter((tx) => tx.relationships.account.data.id === spending?.id).slice(0, 8),
@@ -46,32 +52,40 @@ export default function HomeScreen() {
   const totalSaved = savers.reduce((sum, s) => sum + s.attributes.balance.valueInBaseUnits, 0);
 
   return (
-    <Screen>
+    <Screen scrollEnabled={!scrubbing}>
+      {/* The headline is how this month's spending is pacing against last month's. */}
       <View style={styles.hero}>
-        <Text style={styles.greeting}>{greeting(generatedAt)}</Text>
-        <Money cents={spending?.attributes.balance.valueInBaseUnits ?? 0} size="large" />
-        <Text style={styles.caption}>
-          Available in {spending?.attributes.displayName ?? 'Spending'}
+        <Text style={styles.greeting}>
+          {greeting(generatedAt)} · Spent in {formatMonth(generatedAt)}
         </Text>
-        <View style={styles.banner}>
-          <DemoBanner />
-        </View>
+      </View>
+      <PaceChart pace={pace} month={generatedAt} onScrubbingChange={onScrubbingChange} />
+      <View style={styles.banner}>
+        <DemoBanner />
       </View>
 
       <Sheet>
         <ListSection
-          title={`Spent in ${formatMonth(generatedAt)}`}
+          title="This month"
           actionLabel="Insights"
           onAction={() => router.navigate('/insights')}
         >
           <ListRow
-            title="So far this month"
-            subtitle={`By this time in ${formatMonth(previousMonth(generatedAt))} you'd spent ${formatMoney(month.lastMonth)}`}
-            leading={<Feather name="pie-chart" size={22} color={colors.text} />}
-            trailing={<Money cents={month.total} />}
-            separator={false}
-            onPress={() => router.navigate('/insights')}
+            title={`Available in ${spending?.attributes.displayName ?? 'Spending'}`}
+            leading={<Feather name="credit-card" size={22} color={colors.text} />}
+            trailing={<Money cents={spending?.attributes.balance.valueInBaseUnits ?? 0} />}
+            separator={biggest !== undefined}
           />
+          {biggest ? (
+            <ListRow
+              title={biggest.name}
+              subtitle="Where most of your money went"
+              leading={<CategoryBadge parentId={biggest.id} />}
+              trailing={<Money cents={biggest.total} />}
+              separator={false}
+              onPress={() => router.navigate('/insights')}
+            />
+          ) : null}
         </ListSection>
 
         <ListSection
@@ -170,12 +184,8 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginBottom: spacing.sm,
   },
-  caption: {
-    ...type.body,
-    color: colors.textMuted,
-    marginTop: spacing.xs,
-  },
   banner: {
+    alignItems: 'center',
     marginTop: spacing.md,
   },
 });
