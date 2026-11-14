@@ -1,15 +1,24 @@
-import { barLayers, SINK_FADE, sloshX, sloshY, sunkRadius } from '../drain';
+import { barLayers, fallenY, fallProgress, FALL_SHARE, sloshX, sloshY } from '../pour';
 
-describe('sunkRadius', () => {
-  it('keeps particles full size until they near zero', () => {
-    expect(sunkRadius(100, 2, 180)).toBe(2);
-    expect(sunkRadius(180 - SINK_FADE, 2, 180)).toBe(2);
+describe('fallProgress', () => {
+  it('fills the floor first and lands the surface last', () => {
+    expect(fallProgress(0, 0)).toBe(0);
+    expect(fallProgress(1, 0)).toBeLessThan(0);
+    expect(fallProgress(1, 1 - FALL_SHARE)).toBe(0);
+    expect(fallProgress(0, 0.2)).toBeGreaterThan(fallProgress(0.5, 0.2));
   });
 
-  it('shrinks them into the zero line, and hides them once they reach it', () => {
-    expect(sunkRadius(180 - SINK_FADE / 2, 2, 180)).toBeCloseTo(1, 5);
-    expect(sunkRadius(180, 2, 180)).toBe(0);
-    expect(sunkRadius(200, 2, 180)).toBe(0);
+  it('has every particle landed by the end', () => {
+    for (const depth of [0, 0.3, 0.7, 1]) expect(fallProgress(depth, 1)).toBe(1);
+  });
+});
+
+describe('fallenY', () => {
+  it('starts at the top, ends at rest, and speeds up as it falls', () => {
+    expect(fallenY(20, 120, 0)).toBe(20);
+    expect(fallenY(20, 120, 1)).toBe(120);
+    // Less than halfway down at half the time, like something dropped.
+    expect(fallenY(20, 120, 0.5)).toBeLessThan(70);
   });
 });
 

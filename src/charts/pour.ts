@@ -1,12 +1,11 @@
 import { bucketByAlpha, DEFAULT_BAND, particlesInBar, type BandOptions } from './particles';
 
 /**
- * Motion for the savings-rate bars, kept free of React and Skia so it can be unit tested.
+ * Motion for the savings bars, kept free of React and Skia so it can be unit tested.
  *
- *  - **Draining**: each month starts as one full column of everything that came in. The whole
- *    column sinks, its beaded surface dropping like a level, until it rests at what was kept.
- *    Particles that reach zero sink into it and disappear, so where the level will stop isn't
- *    given away until it gets there.
+ *  - **Pouring**: each month's beads fall in from the top of what came in and pile up from the
+ *    bottom, the beaded surface landing last at what was kept. Nothing shows where the pile
+ *    will stop until it gets there.
  *  - **Sloshing**: tilt the phone and the particles in each bar lean the way of gravity, like
  *    liquid in a glass: the surface rises on the low side and loose particles drift across.
  */
@@ -22,8 +21,8 @@ export interface BarLayer {
   loose: number[];
 }
 
-/** How far above zero, in points, a sinking particle starts to shrink into the line. */
-export const SINK_FADE = 6;
+/** The share of the pour each particle spends falling; the rest staggers them, bottom first. */
+export const FALL_SHARE = 0.4;
 /** How steeply the surface tilts per g of sideways gravity. */
 export const SLOSH_SLOPE = 0.9;
 /** How far, in points, the loosest particles drift per g of sideways gravity. */
@@ -58,14 +57,21 @@ export function barLayers(
 }
 
 /**
- * A particle's radius as its column sinks: full size above zero, shrinking over the last
- * `SINK_FADE` points, and gone once it reaches zero at `zeroY`.
+ * How far a particle is through its fall at `t` (0–1) of the pour: below 0 before it has started,
+ * then 0 to 1, and 1 once it has landed. `depth` is how far up the pile it rests, 0 on the floor
+ * and 1 at the surface, so the floor fills first and the surface lands last.
  */
-export function sunkRadius(y: number, r: number, zeroY: number): number {
+export function fallProgress(depth: number, t: number): number {
   'worklet';
-  const above = zeroY - y;
-  if (above <= 0) return 0;
-  return above >= SINK_FADE ? r : (r * above) / SINK_FADE;
+  const start = depth * (1 - FALL_SHARE);
+  if (t < start) return -1;
+  return Math.min((t - start) / FALL_SHARE, 1);
+}
+
+/** Where a falling particle is, `fall` (0–1) of the way from `fromY` to `restY`, speeding up as it goes. */
+export function fallenY(fromY: number, restY: number, fall: number): number {
+  'worklet';
+  return fromY + (restY - fromY) * fall * fall;
 }
 
 /** A particle's x once sloshed by `tilt` (sideways gravity in g, right side down positive). */

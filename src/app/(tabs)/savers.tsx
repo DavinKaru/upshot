@@ -26,7 +26,7 @@ export default function SaversScreen() {
   const { transactions, generatedAt } = useBankData();
   const { savers } = useAccounts();
   const navigation = useNavigation();
-  // The months drain as the screen comes into view, and only slosh while it's showing.
+  // The months fill as the screen comes into view, and only slosh while it's showing.
   const focused = useIsFocused();
   const [scrubbing, setScrubbing] = useState(false);
 
@@ -122,7 +122,7 @@ export default function SaversScreen() {
 
         <Text style={styles.footnote}>
           Moving money between your own accounts, like into a Saver, doesn&apos;t count as coming in
-          or going out. Tap a month to watch it drain again, or tilt your phone.
+          or going out. Tap a month to watch it fill again, or tilt your phone.
         </Text>
       </Sheet>
     </Screen>

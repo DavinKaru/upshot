@@ -52,13 +52,13 @@ describe('screens render with demo data', () => {
     expect(await screen.findByText(/^Spending in /)).toBeTruthy();
   });
 
-  it('Savers shows the savings rate, this month so far and each Saver', async () => {
+  it('Savers shows what you kept, this month so far and each Saver', async () => {
     await renderScreen(<SaversScreen />);
-    expect(screen.getByText(/^Kept of what came in, /)).toBeTruthy();
+    expect(screen.getByText(/^A month on average, .+: saved \d+%$/)).toBeTruthy();
     expect(screen.getByText(/^[A-Z][a-z]+ so far$/)).toBeTruthy();
     expect(screen.getByText('Came in')).toBeTruthy();
     expect(screen.getByText('Japan Trip')).toBeTruthy();
-    expect(screen.getByLabelText(/^Savings rate by month\. Average /)).toBeTruthy();
+    expect(screen.getByLabelText(/^What you kept each month\. Average [+-]?\$/)).toBeTruthy();
   });
 
   it('Upshot shows the app, the Up connection and the disclaimer', async () => {

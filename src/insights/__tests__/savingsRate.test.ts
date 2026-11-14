@@ -26,6 +26,8 @@ describe('savingsRate', () => {
     expect(rate.months[1]?.rate).toBeCloseTo(0.25);
     // 50,000 kept of 600,000 across both months.
     expect(rate.average).toBeCloseTo(50000 / 600000);
+    // 50,000 kept over two months.
+    expect(rate.averageKept).toBe(25000);
     expect(rate.thisMonth).toMatchObject({ month: '2026-11', moneyIn: 100000, kept: 100000 });
   });
 

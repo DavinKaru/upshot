@@ -34,9 +34,9 @@ import { formatMoneyRounded } from '@/lib/money';
 import { useTilt } from '@/lib/useTilt';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
-import { barLayers, sloshX, sloshY, sunkRadius, type BarLayer } from './drain';
 import { barAt, buildBarChart, type BarSlot } from './geometry';
 import { ALPHA_LEVELS, DEFAULT_BAND, type BandOptions } from './particles';
+import { barLayers, fallenY, fallProgress, sloshX, sloshY, type BarLayer } from './pour';
 
 interface SavingsRateChartProps {
   rate: SavingsRate;
@@ -44,7 +44,7 @@ interface SavingsRateChartProps {
   /** Called with `true` from the moment a finger lands on the chart until it lifts. */
   onScrubbingChange?: (scrubbing: boolean) => void;
   /**
-   * Whether the chart is on screen. The months drain each time it comes into view, and the
+   * Whether the chart is on screen. The months fill each time it comes into view, and the
    * particles only slosh with the phone's tilt while it's showing.
    */
   visible?: boolean;
@@ -52,16 +52,18 @@ interface SavingsRateChartProps {
 
 const TOP = 14;
 const BOTTOM = 6;
-/** Room on the right for the average's label. */
+/** Room on the right for the line labels. */
 const LABEL_WIDTH = 40;
 /** How far the months you're not looking at fade back. */
 const DIMMED = 0.28;
-/** How long a month's column takes to sink to what was kept. */
-const DRAIN_MS = 1300;
-/** A month where more went out than came in shows its grey bar once its column is this far gone. */
-const NEGATIVE_FROM = 0.7;
-/** Months drain one after another on first showing, this far apart. */
-const DRAIN_STAGGER = 110;
+/** How long a month takes to fill with what was kept. */
+const POUR_MS = 1400;
+/** Months fill one after another on first showing, this far apart. */
+const POUR_STAGGER = 110;
+/** Corner radius of the track that shows what came in. */
+const TRACK_RADIUS = 4;
+/** How strongly the track shows: enough to see the top of what came in, no more. */
+const TRACK_OPACITY = 0.07;
 
 const barBand = (seed: number): BandOptions => ({
   ...DEFAULT_BAND,
@@ -74,10 +76,12 @@ const barBand = (seed: number): BandOptions => ({
 
 interface MonthBar {
   slot: BarSlot;
-  /** A full column of everything that came in, from zero up to 100%, which sinks as it drains. */
-  column: BarLayer[];
-  /** How far the column sinks: from 100% down to what was kept, or all the way to zero. */
-  drop: number;
+  /** SVG path of the faint track from zero up to what came in, or '' if nothing did. */
+  track: string;
+  /** Screen y of the top of what came in, where the beads pour in from. */
+  inY: number;
+  /** What was kept, from zero up. Empty when nothing was. */
+  kept: BarLayer[];
   /** The grey bar below zero, when more went out than came in. Empty otherwise. */
   overspent: BarLayer[];
 }
@@ -87,23 +91,58 @@ export function formatRate(rate: number | null): string {
   return rate === null ? '–' : `${Math.round(rate * 100)}%`;
 }
 
-/** What a month's bar says, for the caption and screen readers. */
+/** "+$2,049", "-$258" or "$0", in whole dollars. */
+export function formatSaved(cents: number): string {
+  const dollars = Math.round(cents / 100);
+  if (dollars === 0) return '$0';
+  return dollars > 0 ? `+${formatMoneyRounded(cents)}` : formatMoneyRounded(cents);
+}
+
+/** The line under the headline when a month is chosen. */
 function describeMonth(month: MonthFlow): string {
   const name = formatMonth(parseMonthKey(month.month));
-  if (month.moneyIn === 0) return `Nothing came in during ${name}`;
-  if (month.kept < 0) {
-    return `${name}: ${formatMoneyRounded(-month.kept)} more went out than came in`;
-  }
-  return `${name}: kept ${formatMoneyRounded(month.kept)} of ${formatMoneyRounded(month.moneyIn)}`;
+  if (month.rate === null) return `Nothing came in during ${name}`;
+  const cameIn = formatMoneyRounded(month.moneyIn);
+  return month.rate < 0
+    ? `${name}: spent ${formatRate(-month.rate)} more than the ${cameIn} that came in`
+    : `${name}: saved ${formatRate(month.rate)} of ${cameIn}`;
+}
+
+/** The line under the headline for the average month. */
+function describeAverage(rate: SavingsRate): string {
+  const { months, average } = rate;
+  const first = months[0];
+  const last = months[months.length - 1];
+  const span =
+    first && last
+      ? `, ${formatShortMonth(parseMonthKey(first.month))} to ${formatShortMonth(parseMonthKey(last.month))}`
+      : '';
+  if (average === null) return `Nothing came in${span}`;
+  return average < 0
+    ? `A month on average${span}: spent ${formatRate(-average)} more than came in`
+    : `A month on average${span}: saved ${formatRate(average)}`;
+}
+
+/** A month in full, for screen readers. */
+function speakMonth(month: MonthFlow): string {
+  return `${formatMonth(parseMonthKey(month.month))}: ${formatSaved(month.kept)} of ${formatMoneyRounded(month.moneyIn)} that came in`;
+}
+
+/** A track from zero up to `topY`, its top corners rounded. */
+function trackPath(x0: number, x1: number, topY: number, zeroY: number): string {
+  if (zeroY - topY < 0.5) return '';
+  const r = Math.min(TRACK_RADIUS, (x1 - x0) / 2, zeroY - topY);
+  return `M ${x0} ${zeroY} V ${topY + r} Q ${x0} ${topY} ${x0 + r} ${topY} H ${x1 - r} Q ${x1} ${topY} ${x1} ${topY + r} V ${zeroY} Z`;
 }
 
 /**
- * How much of what came in you kept, month by month, as particle bars against your average.
+ * What you kept each month, in dollars, against what came in.
  *
- * Each month starts as a full column of everything that came in, then sinks as one bar until
- * it rests at what was kept. The headline is the average; tap a month to read it (and watch
- * it drain again), drag across to compare, and tap it again to go back to the average. Tilt the
- * phone and the particles slosh.
+ * Each month has a faint track up to what came in. Beads pour in from its top and pile up from
+ * zero to what was kept; a month where more went out than came in pours a grey bar below zero
+ * instead. The headline is the average month; tap a month to read it (and watch it fill again),
+ * drag across to compare, and tap it again to go back to the average. Tilt the phone and the
+ * particles slosh.
  */
 export function SavingsRateChart({
   rate,
@@ -113,11 +152,11 @@ export function SavingsRateChart({
 }: SavingsRateChartProps) {
   const [width, setWidth] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
-  // How many times each month has been tapped, to drain it again.
+  // How many times each month has been tapped, to fill it again.
   const [replays, setReplays] = useState<Record<number, number>>({});
-  // The month last tapped, which drains on its own straight away.
+  // The month last tapped, which fills on its own straight away.
   const [tapped, setTapped] = useState<number | null>(null);
-  // How many times the chart has come into view; the months drain again each time.
+  // How many times the chart has come into view; the months fill again each time.
   const [visits, setVisits] = useState(0);
   const [wasVisible, setWasVisible] = useState(false);
   if (visible !== wasVisible) {
@@ -129,39 +168,42 @@ export function SavingsRateChart({
   }
   const reduceMotion = useReducedMotion();
   const tilt = useTilt(visible && !reduceMotion);
-  const { months, average } = rate;
+  const { months, averageKept } = rate;
 
   const geometry = useMemo(
     () =>
       buildBarChart(
-        months.map((m) => m.rate),
+        months.map((m) => m.kept),
         width,
         height,
         { top: TOP, bottom: BOTTOM, left: 0, right: LABEL_WIDTH },
-        // Room for a full column: everything that came in.
-        { reference: average, include: [1] },
+        // Room for the tracks: everything that came in.
+        {
+          reference: months.length > 0 ? averageKept : null,
+          include: months.map((m) => m.moneyIn),
+        },
       ),
-    [months, average, width, height],
+    [months, averageKept, width, height],
   );
   const bars: MonthBar[] = useMemo(
     () =>
       geometry.bars.map((slot, i) => {
         const month = months[i];
         const { zeroY } = geometry;
-        const negative = (month?.kept ?? 0) < 0;
-        const cameIn = (month?.moneyIn ?? 0) > 0;
-        const topY = geometry.y(1);
+        const kept = month?.kept ?? 0;
+        const inY = geometry.y(month?.moneyIn ?? 0);
         return {
           slot,
-          column: cameIn ? barLayers(slot.x0, slot.x1, topY, zeroY, barBand(101 + i)) : [],
-          drop: (negative ? zeroY : slot.y) - topY,
-          overspent: negative ? barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(7 + i)) : [],
+          track: trackPath(slot.x0, slot.x1, inY, zeroY),
+          inY,
+          kept: kept > 0 ? barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(101 + i)) : [],
+          overspent: kept < 0 ? barLayers(slot.x0, slot.x1, slot.y, zeroY, barBand(7 + i)) : [],
         };
       }),
     [geometry, months],
   );
 
-  // Columns grow out of the zero line the first time they're seen, and whenever the data
+  // The tracks grow out of the zero line the first time they're seen, and whenever the data
   // changes after that.
   const progress = useSharedValue(0);
   const seen = visits > 0;
@@ -190,7 +232,7 @@ export function SavingsRateChart({
   const onTap = useCallback(
     (index: number) => {
       onSelect(index);
-      // Tapping a month plays its drain again.
+      // Tapping a month fills it again.
       if (index < 0) return;
       setTapped(index);
       setReplays((r) => ({ ...r, [index]: (r[index] ?? 0) + 1 }));
@@ -237,23 +279,17 @@ export function SavingsRateChart({
 
   const onLayout = (event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width);
   const month = selected !== null ? months[selected] : undefined;
-  const shownRate = month ? month.rate : average;
-  const first = months[0];
-  const last = months[months.length - 1];
-  const caption = month
-    ? describeMonth(month)
-    : first && last
-      ? `Kept of what came in, ${formatShortMonth(parseMonthKey(first.month))} to ${formatShortMonth(parseMonthKey(last.month))}`
-      : 'Kept of what came in';
+  const shownKept = month ? month.kept : averageKept;
+  const caption = month ? describeMonth(month) : describeAverage(rate);
 
   return (
     <View>
       <View style={styles.header}>
         <Text
-          style={[styles.rate, (shownRate ?? 0) < 0 && { color: colors.negative }]}
+          style={[styles.saved, Math.round(shownKept / 100) < 0 && { color: colors.negative }]}
           accessibilityLiveRegion="polite"
         >
-          {formatRate(shownRate)}
+          {formatSaved(shownKept)}
         </Text>
         <Text style={styles.caption}>{caption}</Text>
       </View>
@@ -263,19 +299,12 @@ export function SavingsRateChart({
           onLayout={onLayout}
           accessible
           accessibilityRole="image"
-          accessibilityLabel={`Savings rate by month. Average ${formatRate(average)}. ${months
-            .map((m) => `${describeMonth(m)}, ${formatRate(m.rate)}`)
+          accessibilityLabel={`What you kept each month. Average ${formatSaved(averageKept)}. ${months
+            .map(speakMonth)
             .join('. ')}.`}
         >
           {width > 0 ? (
             <Canvas style={StyleSheet.absoluteFill}>
-              {/* Break even: above it you kept money, below it more went out than came in. */}
-              <Line
-                p1={vec(0, zeroY)}
-                p2={vec(width - LABEL_WIDTH + 4, zeroY)}
-                color={colors.textMuted}
-                strokeWidth={1}
-              />
               <Group clip={clip}>
                 {bars.map((bar, i) => (
                   <Bar
@@ -288,14 +317,19 @@ export function SavingsRateChart({
                     ready={seen}
                     trigger={`${visits}:${replays[i] ?? 0}`}
                     delay={
-                      tapped === i
-                        ? 80
-                        : (visits > 1 ? 250 : motion.chart * 0.7) + i * DRAIN_STAGGER
+                      tapped === i ? 80 : (visits > 1 ? 250 : motion.chart * 0.7) + i * POUR_STAGGER
                     }
                     reduceMotion={reduceMotion}
                   />
                 ))}
               </Group>
+              {/* Break even: above it you kept money, below it more went out than came in. */}
+              <Line
+                p1={vec(0, zeroY)}
+                p2={vec(width - LABEL_WIDTH + 4, zeroY)}
+                color={colors.textMuted}
+                strokeWidth={1}
+              />
               {geometry.referenceY !== null ? (
                 <Line
                   p1={vec(0, geometry.referenceY)}
@@ -322,7 +356,7 @@ export function SavingsRateChart({
               { top: zeroY - (labelsClash ? -2 : 8) },
             ]}
           >
-            0%
+            $0
           </Text>
         </View>
       </GestureDetector>
@@ -351,149 +385,130 @@ interface BarProps {
   /** The chosen month, or -1. */
   active: SharedValue<number>;
   tilt: SharedValue<number>;
-  /** False until the chart has been on screen, so the columns wait, full, to be seen. */
+  /** False until the chart has been on screen, so the months wait, empty, to be seen. */
   ready: boolean;
-  /** Changes whenever the month should drain again: the chart coming into view, or a tap. */
+  /** Changes whenever the month should fill again: the chart coming into view, or a tap. */
   trigger: string;
-  /** How long to wait before draining. */
+  /** How long to wait before filling. */
   delay: number;
   reduceMotion: boolean;
 }
 
 /**
- * One month: a full column that sinks to what was kept, faded back while another month is
- * chosen. A month where more went out than came in sinks away completely, and its grey bar
- * below zero appears as the last of it goes.
+ * One month: the track of what came in, with what was kept pouring in from its top, faded back
+ * while another month is chosen. A month where more went out than came in pours its grey bar
+ * down from zero instead.
  */
 function Bar({ index, bar, zeroY, active, tilt, ready, trigger, delay, reduceMotion }: BarProps) {
-  const drain = useSharedValue(reduceMotion ? 1 : 0);
-  const { column, drop, overspent, slot } = bar;
+  const pour = useSharedValue(reduceMotion ? 1 : 0);
+  const { track, inY, kept, overspent, slot } = bar;
 
   useEffect(() => {
     if (reduceMotion) {
-      drain.value = 1;
+      pour.value = 1;
       return;
     }
-    drain.value = 0;
+    pour.value = 0;
     if (!ready) return;
-    drain.value = withDelay(
-      delay,
-      withTiming(1, { duration: DRAIN_MS, easing: Easing.inOut(Easing.cubic) }),
-    );
+    pour.value = withDelay(delay, withTiming(1, { duration: POUR_MS, easing: Easing.linear }));
     // `delay` is left out on purpose: it changes with the tap that also changes `trigger`, and
-    // a new delay alone shouldn't drain the month again.
+    // a new delay alone shouldn't fill the month again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, trigger, column, reduceMotion, drain]);
+  }, [ready, trigger, kept, overspent, reduceMotion, pour]);
 
   const opacity = useDerivedValue(() => (active.value < 0 || active.value === index ? 1 : DIMMED));
-  const overspentOpacity = useDerivedValue(() =>
-    Math.min(Math.max((drain.value - NEGATIVE_FROM) / (1 - NEGATIVE_FROM), 0), 1),
-  );
 
   return (
     <Group opacity={opacity}>
-      {column.map((layer, level) =>
+      {track ? <Path path={track} color={colors.text} opacity={TRACK_OPACITY} /> : null}
+      {kept.map((layer, level) =>
         layer.xs.length > 0 ? (
-          <ColumnLayer
-            key={`column-${level}`}
+          <PouredLayer
+            key={`kept-${level}`}
             layer={layer}
             slot={slot}
             zeroY={zeroY}
-            drop={drop}
-            drain={drain}
+            fromY={inY}
+            pour={pour}
             tilt={tilt}
+            color={colors.accent}
             opacity={ALPHA_LEVELS[level] ?? 1}
           />
         ) : null,
       )}
-      {overspent.length > 0 ? (
-        <Group opacity={overspentOpacity}>
-          {overspent.map((layer, level) =>
-            layer.xs.length > 0 ? (
-              <OverspentLayer
-                key={`overspent-${level}`}
-                layer={layer}
-                slot={slot}
-                zeroY={zeroY}
-                tilt={tilt}
-                opacity={ALPHA_LEVELS[level] ?? 1}
-              />
-            ) : null,
-          )}
-        </Group>
-      ) : null}
+      {overspent.map((layer, level) =>
+        layer.xs.length > 0 ? (
+          <PouredLayer
+            key={`overspent-${level}`}
+            layer={layer}
+            slot={slot}
+            zeroY={zeroY}
+            fromY={zeroY}
+            // Below zero the floor is the bar's far end, so that end fills first.
+            fromFarEnd
+            pour={pour}
+            tilt={tilt}
+            color={colors.textMuted}
+            opacity={ALPHA_LEVELS[level] ?? 1}
+          />
+        ) : null,
+      )}
     </Group>
   );
 }
 
-interface LayerProps {
+interface PouredLayerProps {
+  layer: BarLayer;
   slot: BarSlot;
   zeroY: number;
+  /** Where the particles fall from. */
+  fromY: number;
+  /** True when the pile rests on the bar's far end rather than on zero. */
+  fromFarEnd?: boolean;
+  pour: SharedValue<number>;
   tilt: SharedValue<number>;
+  color: string;
   opacity: number;
 }
 
-/** The grey bar below zero at one opacity level, sloshing as the phone tilts. */
-function OverspentLayer({ layer, slot, zeroY, tilt, opacity }: LayerProps & { layer: BarLayer }) {
-  const { xs, ys, rs, weights, loose } = layer;
-  const { x0, x1, cx } = slot;
-  const path = usePathValue((builder) => {
-    'worklet';
-    const t = tilt.value;
-    for (let i = 0; i < xs.length; i++) {
-      const x = xs[i] ?? 0;
-      const y = ys[i] ?? 0;
-      const r = rs[i] ?? 1;
-      if (t === 0) {
-        builder.addCircle(x, y, r);
-        continue;
-      }
-      builder.addCircle(
-        sloshX(x, loose[i] ?? 0, t, x0, x1),
-        sloshY(y, x, weights[i] ?? 0, t, cx, zeroY),
-        r,
-      );
-    }
-  });
-  return <Path path={path} color={colors.textMuted} opacity={opacity} />;
-}
-
 /**
- * One opacity level of a month's column, sunk `drop` points by the end of the drain. Particles
- * shrink into the zero line as they reach it, and the rest slosh as the phone tilts.
+ * One opacity level of a bar, pouring in: each particle falls from `fromY` to its place, the
+ * bottom of the pile first and the beaded surface last, then sloshes as the phone tilts.
  */
-function ColumnLayer({
+function PouredLayer({
   layer,
   slot,
   zeroY,
-  drop,
-  drain,
+  fromY,
+  fromFarEnd = false,
+  pour,
   tilt,
+  color,
   opacity,
-}: LayerProps & { layer: BarLayer; drop: number; drain: SharedValue<number> }) {
+}: PouredLayerProps) {
   const { xs, ys, rs, weights, loose } = layer;
   const { x0, x1, cx } = slot;
   const path = usePathValue((builder) => {
     'worklet';
-    const sunk = drop * drain.value;
-    const t = tilt.value;
+    const t = pour.value;
+    const g = tilt.value;
     for (let i = 0; i < xs.length; i++) {
-      const y = (ys[i] ?? 0) + sunk;
-      const r = sunkRadius(y, rs[i] ?? 1, zeroY);
-      if (r <= 0) continue;
+      const weight = weights[i] ?? 0;
+      // Weight is 1 at the bar's end and 0 at zero, which is how far up the pile it rests.
+      const fall = fallProgress(fromFarEnd ? 1 - weight : weight, t);
+      if (fall < 0) continue;
       const x = xs[i] ?? 0;
-      if (t === 0) {
+      const y = fall >= 1 ? (ys[i] ?? 0) : fallenY(fromY, ys[i] ?? 0, fall);
+      // Particles grow to full size over the start of their fall, rather than popping in.
+      const r = (rs[i] ?? 1) * Math.min(1, 0.4 + fall * 3);
+      if (g === 0) {
         builder.addCircle(x, y, r);
         continue;
       }
-      builder.addCircle(
-        sloshX(x, loose[i] ?? 0, t, x0, x1),
-        sloshY(y, x, weights[i] ?? 0, t, cx, zeroY),
-        r,
-      );
+      builder.addCircle(sloshX(x, loose[i] ?? 0, g, x0, x1), sloshY(y, x, weight, g, cx, zeroY), r);
     }
   });
-  return <Path path={path} color={colors.accent} opacity={opacity} />;
+  return <Path path={path} color={color} opacity={opacity} />;
 }
 
 const styles = StyleSheet.create({
@@ -501,7 +516,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.lg,
   },
-  rate: {
+  saved: {
     ...type.moneyLarge,
     color: colors.text,
     fontVariant: ['tabular-nums'],

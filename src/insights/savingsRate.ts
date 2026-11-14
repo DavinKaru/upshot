@@ -23,6 +23,8 @@ export interface SavingsRate {
   thisMonth: MonthFlow;
   /** Everything kept over `months` as a share of everything that came in, or `null`. */
   average: number | null;
+  /** What was kept in an average month of `months`, in cents. Negative if you overspent. */
+  averageKept: number;
 }
 
 /** True for money arriving from outside your accounts, rather than moved between them. */
@@ -79,5 +81,6 @@ export function savingsRate(
     months,
     thisMonth: flows[count] ?? flow(monthKey(date), 0, 0),
     average: rateOf(kept, moneyIn),
+    averageKept: months.length > 0 ? Math.round(kept / months.length) : 0,
   };
 }
