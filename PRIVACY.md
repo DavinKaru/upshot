@@ -32,9 +32,9 @@ Upshot doesn't ask for Motion & Fitness access, as it never reads your steps or 
 |---|---|
 | `api.up.com.au` | Up's API, to fetch your accounts and transactions |
 
-More hosts, such as an analytics provider, will only be added if they're listed here first.
+More hosts will only be added if they're listed here first.
 
-## Analytics
+## Analytics and tracking
 
-None today. If we add analytics later, they'll be off unless you turn them on, and they'll never
-include amounts, merchants, account details or anything else from your bank data.
+None. Upshot doesn't collect analytics, crash reports or any other data about how you use the app,
+and there's no setting to turn them on.

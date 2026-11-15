@@ -25,8 +25,8 @@ token and see where your money goes. Your token and your data stay on your devic
 - **Your token stays in your phone's secure storage** (the iOS Keychain or Android Keystore), and
   opening the app needs Face ID or your fingerprint.
 - **Your data is cached in an encrypted database** that's excluded from cloud backups.
-- **Analytics are off unless you turn them on**, and even then they never include amounts,
-  merchants or anything else from your account.
+- **No analytics or tracking.** Upshot doesn't collect usage data, crash reports or anything else
+  about how you use it.
 
 Up's terms say personal access tokens are for personal use and mustn't be shared with anyone else.
 Upshot's design follows that: you create your own token, and it never leaves your device.

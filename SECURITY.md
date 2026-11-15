@@ -19,7 +19,7 @@ values or the app's demo data.
 
 - The Upshot app and the code in this repo.
 - Anything that could expose a user's token or banking data: how the token is stored, the local
-  database, logs, screenshots, backups, network traffic and analytics.
+  database, logs, screenshots, backups and network traffic.
 
 Up's own app and API are out of scope. Report problems with those to Up directly.
 

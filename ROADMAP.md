@@ -121,8 +121,6 @@ doesn't fetch or store any transactions yet; that's M3.
 
 | Item | Kind |
 |---|---|
-| Choose the analytics provider (Aptabase or Plausible Events API), off by default | Decision |
-| Opt-in analytics: a few anonymous events, never amounts or merchants | Feature |
 | Webhook audit screen: list webhooks and flag any you don't recognise | Security |
 | Brand assets: app icon, splash screen, store screenshots taken from demo mode | Design |
 | Store listings: "Unofficial · works with Up" wording and a privacy policy | Docs |
@@ -150,10 +148,11 @@ doesn't fetch or store any transactions yet; that's M3.
 | 3 | Theme | **Dark only** |
 | 4 | Chart 2 | **Category breakdown.** The spending pace chart (this month vs last month) goes into M4 |
 | 5 | Visibility | **Public from the start**, for both the repo and the GitHub Project |
+| 6 | Analytics | **None.** Upshot never tracks its users: no analytics, crash reporting or usage data, opt-in or otherwise |
 
 ### Public from day one: implications
 
-- Nothing secret is ever committed. Analytics keys are designed to be public, and test tokens are never committed.
+- Nothing secret is ever committed, and test tokens are never committed.
 - `llms.txt` is Up's API reference, not our content. Don't commit it: add it to `.gitignore` and
   link to developer.up.com.au.
 - Demo data has to be clearly made up, with no real merchants that could be traced back to a person.
