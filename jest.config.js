@@ -6,6 +6,8 @@ const [babelJest, babelOptions] = preset.transform['\\.[jt]sx?$'];
 /** @type {import('jest').Config} */
 module.exports = {
   preset: 'jest-expo',
+  // jest-expo's environment, plus a time zone switch for tests. See jest.environment.js.
+  testEnvironment: '<rootDir>/jest.environment.js',
   setupFiles: ['<rootDir>/jest.setup.js'],
   transform: {
     ...preset.transform,

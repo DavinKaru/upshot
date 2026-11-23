@@ -109,6 +109,7 @@ doesn't fetch or store any transactions yet; that's M3.
 |---|---|
 | Monthly summary: money in, money out, net, and the change from last month | Feature |
 | Spending pace: cumulative spending this month vs last month, with scrubbing (reuses the Chart 1 component) | Feature |
+| **Spent today.** Answers "how much have I spent today?", and how that compares with yesterday, the last few days, the same day last week and your daily average | Feature |
 | Category trends: spending per category over 6–12 months | Feature |
 | Top merchants: by total spent and by how often you buy | Feature |
 | Round Ups, interest and cashback totals | Feature |
