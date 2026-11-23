@@ -58,3 +58,61 @@ export function parseDayKey(key: string): Date {
   const [y, m, d] = key.split('-').map(Number);
   return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
 }
+
+/**
+ * A stretch of time from `start` up to, but not including, `end`. Half-open, so ranges that
+ * meet at a midnight never count the same moment twice.
+ */
+export interface DateRange {
+  start: Date;
+  end: Date;
+}
+
+/** True when `at` falls within `range`. */
+export function inRange(at: Date, range: DateRange): boolean {
+  return at >= range.start && at < range.end;
+}
+
+/** Local midnight at the start of the day containing `date`. */
+export function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/**
+ * Local midnight `days` calendar days after the day containing `date` (before, if negative).
+ * Counts calendar days rather than 24-hour periods, so daylight saving changes don't shift it.
+ */
+export function addDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+/** The whole local calendar month containing `date`. */
+export function monthRange(date: Date): DateRange {
+  return {
+    start: new Date(date.getFullYear(), date.getMonth(), 1),
+    end: new Date(date.getFullYear(), date.getMonth() + 1, 1),
+  };
+}
+
+/**
+ * The local calendar month containing `date`, from the 1st up to and including `date`: the month
+ * so far, the same stretch `monthlySummary` and `spentToday` count.
+ */
+export function monthToDate(date: Date): DateRange {
+  return {
+    start: new Date(date.getFullYear(), date.getMonth(), 1),
+    end: new Date(date.getTime() + 1),
+  };
+}
+
+/**
+ * How far into its local day `date` is, by the clock on the wall, in milliseconds. On a day when
+ * daylight saving starts or ends this is the clock time, not the time elapsed since midnight, so
+ * "by 3 pm" means 3 pm on every day.
+ */
+export function timeOfDay(date: Date): number {
+  return (
+    ((date.getHours() * 60 + date.getMinutes()) * 60 + date.getSeconds()) * 1000 +
+    date.getMilliseconds()
+  );
+}
