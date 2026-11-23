@@ -9,7 +9,7 @@ import {
   vec,
 } from '@shopify/react-native-skia';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { StyleSheet, Text, useWindowDimensions, View, type LayoutChangeEvent } from 'react-native';
 import {
   GestureDetector,
   useCompetingGestures,
@@ -35,6 +35,7 @@ import { useTilt } from '@/lib/useTilt';
 import { colors, motion, spacing, type } from '@/theme/tokens';
 
 import { barAt, buildBarChart, type BarSlot } from './geometry';
+import { LINE_LABEL_HEIGHT, placeLineLabels } from './lineLabels';
 import { ALPHA_LEVELS, DEFAULT_BAND, type BandOptions } from './particles';
 import { barLayers, fallenY, fallProgress, sloshX, sloshY, type BarLayer } from './pour';
 
@@ -217,7 +218,14 @@ export function SavingsRateChart({
     progress.value = withTiming(1, { duration: motion.chart, easing: Easing.out(Easing.cubic) });
   }, [bars, seen, progress, reduceMotion]);
   const { zeroY } = geometry;
-  const labelsClash = geometry.referenceY !== null && Math.abs(geometry.referenceY - zeroY) < 14;
+  // The labels grow with the system text size, so the room they need does too.
+  const { fontScale } = useWindowDimensions();
+  const labelTops = placeLineLabels(
+    zeroY,
+    geometry.referenceY,
+    height,
+    LINE_LABEL_HEIGHT * Math.max(1, fontScale),
+  );
   const clip = useDerivedValue(() =>
     rect(0, zeroY * (1 - progress.value), width, height * progress.value),
   );
@@ -344,20 +352,13 @@ export function SavingsRateChart({
               ) : null}
             </Canvas>
           ) : null}
-          {geometry.referenceY !== null ? (
-            <Text style={[styles.lineLabel, styles.averageLabel, { top: geometry.referenceY - 8 }]}>
+          {labelTops.average !== null ? (
+            <Text style={[styles.lineLabel, styles.averageLabel, { top: labelTops.average }]}>
               Avg
             </Text>
           ) : null}
-          <Text
-            style={[
-              styles.lineLabel,
-              // Tuck under the line if the average sits right on top of it.
-              { top: zeroY - (labelsClash ? -2 : 8) },
-            ]}
-          >
-            $0
-          </Text>
+          {/* Pushed apart from "Avg" when the average sits close to zero, above or below. */}
+          <Text style={[styles.lineLabel, { top: labelTops.zero }]}>$0</Text>
         </View>
       </GestureDetector>
       <View style={styles.months}>
